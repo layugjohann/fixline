@@ -10,6 +10,10 @@ Harbor Lane Property Management (a fictional company) receives messy, unstructur
 A person renting a Unit, as listed in the Property Roster.
 _Avoid_: Customer, resident, user
 
+**Coordinator**:
+A Harbor Lane staff member who works the Review Queue and manages Work Orders on the Board.
+_Avoid_: Reviewer, admin, operator, manager
+
 **Property**:
 A building managed by the company, containing one or more Units.
 _Avoid_: Building, site, address
