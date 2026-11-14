@@ -11,16 +11,16 @@ The page holds the sandbox state in the browser and sends it with each request, 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** awaiting-merge
+**Status:** done
 Pull Request: https://github.com/layugjohann/fixline/pull/1
 
-- [ ] The repo has `typecheck`, `lint` and `test` npm scripts (named exactly that; the Gate runs `npm run typecheck`, `npm run lint` and `npm test`), and CI runs all three on every push
-- [ ] Domain types use glossary names (Message, Sender, Tenant, Unit, Property Roster, Work Order, Urgency, Trade, Proposal)
-- [ ] Intake exposes one entry point that takes a Message and its dependencies (model, Board, Property Roster) and returns the Proposal, the routing decision and a trace
-- [ ] The agent has read-only tools only. It cannot change the Board (ADR 0001)
-- [ ] A deterministic Intake test using the AI SDK mock model asserts that a scripted create Proposal results in the expected Work Order on the fake Board
-- [ ] Running the app locally with a Groq key, a hard-coded Message produces a visible Work Order on the page
-- [ ] The server holds no sandbox state between requests
+- [x] The repo has `typecheck`, `lint` and `test` npm scripts (named exactly that; the Gate runs `npm run typecheck`, `npm run lint` and `npm test`), and CI runs all three on every push
+- [x] Domain types use glossary names (Message, Sender, Tenant, Unit, Property Roster, Work Order, Urgency, Trade, Proposal)
+- [x] Intake exposes one entry point that takes a Message and its dependencies (model, Board, Property Roster) and returns the Proposal, the routing decision and a trace
+- [x] The agent has read-only tools only. It cannot change the Board (ADR 0001)
+- [x] A deterministic Intake test using the AI SDK mock model asserts that a scripted create Proposal results in the expected Work Order on the fake Board
+- [x] Running the app locally with a Groq key, a hard-coded Message produces a visible Work Order on the page
+- [x] The server holds no sandbox state between requests
 
 ## Comments
 
