@@ -13,7 +13,7 @@ The page holds the sandbox state in the browser and sends it with each request, 
 
 **Status:** ready-for-agent
 
-- [ ] The repo has typecheck, lint and test scripts, and CI runs all three on every push
+- [ ] The repo has `typecheck`, `lint` and `test` npm scripts (named exactly that; the Gate runs `npm run typecheck`, `npm run lint` and `npm test`), and CI runs all three on every push
 - [ ] Domain types use glossary names (Message, Sender, Tenant, Unit, Property Roster, Work Order, Urgency, Trade, Proposal)
 - [ ] Intake exposes one entry point that takes a Message and its dependencies (model, Board, Property Roster) and returns the Proposal, the routing decision and a trace
 - [ ] The agent has read-only tools only. It cannot change the Board (ADR 0001)

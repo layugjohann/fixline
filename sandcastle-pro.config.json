@@ -1,6 +1,8 @@
 {
   "gate": [
     "npm ci --no-audit --no-fund",
+    "npm run typecheck",
+    "npm run lint",
     "npm test"
   ],
   "model": "claude-opus-5-5",
