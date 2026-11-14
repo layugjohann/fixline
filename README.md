@@ -3,6 +3,8 @@
 **An AI agent that turns messy tenant messages into triaged work orders, with human review, evals, and replayable traces.**
 
 > 🚧 Under construction. See the [roadmap](#roadmap).
+>
+> **Live tracer:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app). Press "Run Intake" to turn one hard-coded Message into a Work Order.
 
 ## The engagement
 
@@ -32,6 +34,14 @@ The domain language is defined in [GLOSSARY.md](GLOSSARY.md).
 npm install
 cp .env.example .env.local   # then set GROQ_API_KEY (free tier)
 npm run dev                  # open http://localhost:3000 and press "Run Intake"
+```
+
+### Full setup and deploy
+
+`scripts/setup.sh` is an interactive wizard. It walks you through the Groq and Gemini keys, writes `.env.local`, sets the GitHub Actions secrets, links the Vercel project, sets its production env vars, and deploys. It's safe to re-run: values you've already saved are kept.
+
+```sh
+./scripts/setup.sh
 ```
 
 Checks: `npm run typecheck`, `npm run lint`, `npm test`. The tests use the AI SDK mock model and make no network calls.
