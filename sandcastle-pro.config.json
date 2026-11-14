@@ -1,0 +1,14 @@
+{
+  "gate": [
+    "npm ci --no-audit --no-fund",
+    "npm test"
+  ],
+  "model": "claude-opus-5-5",
+  "effort": "medium",
+  "sandbox": "native",
+  "pullRequest": true,
+  "bodyWriter": {
+    "model": "claude-sonnet-5-5",
+    "effort": "low"
+  }
+}
