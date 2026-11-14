@@ -26,6 +26,16 @@ This project is the sequel to a rules-based tool I built that syncs a source-of-
 
 The domain language is defined in [GLOSSARY.md](GLOSSARY.md).
 
+## Running locally
+
+```sh
+npm install
+cp .env.example .env.local   # then set GROQ_API_KEY (free tier)
+npm run dev                  # open http://localhost:3000 and press "Run Intake"
+```
+
+Checks: `npm run typecheck`, `npm run lint`, `npm test`. The tests use the AI SDK mock model and make no network calls.
+
 ## Roadmap
 
 1. [ ] Domain types, fake Board, Property Roster fixtures, golden dataset

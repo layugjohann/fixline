@@ -12,3 +12,5 @@ coverage/
 .sandcastle/.env
 .sandcastle/logs/
 .sandcastle/worktrees/
+next-env.d.ts
+*.tsbuildinfo
