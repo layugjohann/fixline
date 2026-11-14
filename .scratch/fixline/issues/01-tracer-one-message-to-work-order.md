@@ -11,7 +11,8 @@ The page holds the sandbox state in the browser and sends it with each request, 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** in-progress
+**Status:** awaiting-merge
+Pull Request: https://github.com/layugjohann/fixline/pull/1
 
 - [ ] The repo has `typecheck`, `lint` and `test` npm scripts (named exactly that; the Gate runs `npm run typecheck`, `npm run lint` and `npm test`), and CI runs all three on every push
 - [ ] Domain types use glossary names (Message, Sender, Tenant, Unit, Property Roster, Work Order, Urgency, Trade, Proposal)
@@ -37,3 +38,5 @@ Usage: Implementer 54 input, 23,003 output, 64,157 cache creation, 1,268,055 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-01-2026-11-14T18-50-37-400Z.log`).
 
 Usage: Body writer 2 input, 1,441 output, 173,497 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/1
