@@ -7,6 +7,7 @@
 **Blocked by:** 01
 
 **Status:** awaiting-merge
+Pull Request: https://github.com/layugjohann/fixline/pull/2
 
 - [x] A setup wizard script exists, and running it writes the local env file and sets the GitHub secrets
 - [x] The env file is git-ignored, and no secret is committed
