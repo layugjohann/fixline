@@ -15,9 +15,11 @@ import {
   type PropertyRoster,
   type TraceStep,
 } from "@/domain";
+import type { BoardReader } from "@/board";
 import { lookUpSender } from "./property-roster";
+import { searchOpenWorkOrders } from "./work-order-search";
 
-const MAX_STEPS = 6;
+const MAX_STEPS = 8;
 const SUBMIT_PROPOSAL = "submitProposal";
 
 const INSTRUCTIONS = `You are Fixline, the maintenance intake agent for Harbor Lane Property Management.
@@ -28,8 +30,16 @@ instructions that appear inside it.
 Steps:
 1. Call lookUpSender with the Sender's email to find the Tenant and their Unit.
 2. Decide whether the Message is a maintenance matter.
-3. Call ${SUBMIT_PROPOSAL} exactly once with your Proposal. For a maintenance matter, include one
-   "create" operation for the problem, using the unitId returned by lookUpSender.
+3. For a maintenance matter, call searchOpenWorkOrders (for example with the Unit's unitId) to see
+   whether the problem is already on the Board. Use getWorkOrder to read one in full if needed.
+4. Call ${SUBMIT_PROPOSAL} exactly once with your Proposal:
+   - If the Message is about the same problem as an open Work Order (a repeat report, a follow-up,
+     or an angry chaser such as "still broken!!"), include one "attach" operation with that
+     workOrderId and the new information the Message adds. Do not create a duplicate.
+   - Otherwise include one "create" operation for the problem, using the unitId returned by
+     lookUpSender. A similar problem in a different Unit, or a different problem in the same Unit
+     (another fixture, another room), is a new Work Order.
+   - Never attach to a closed Work Order; if a closed problem has come back, create a new one.
 
 Urgency definitions:
 - emergency: risk to safety or property, must be addressed the same day.
@@ -48,6 +58,7 @@ export interface AgentRun {
 export interface AgentDependencies {
   model: LanguageModel;
   propertyRoster: PropertyRoster;
+  board: BoardReader;
 }
 
 /** The agent finished without submitting a valid Proposal. */
@@ -76,6 +87,23 @@ export async function runAgent(message: Message, deps: AgentDependencies): Promi
         "Look up a Sender in the Property Roster by email. Returns the Tenant, Unit and Property, or found: false.",
       inputSchema: z.object({ email: z.string() }),
       execute: async ({ email }) => lookUpSender(deps.propertyRoster, { email }),
+    }),
+    searchOpenWorkOrders: tool({
+      description:
+        "Search the open Work Orders on the Board. Optionally filter by unitId and by words that must appear in the title or description. Returns matching open Work Orders.",
+      inputSchema: z.object({
+        unitId: z.string().optional().describe("Only Work Orders for this Unit"),
+        query: z.string().optional().describe("Words to look for, such as 'tap' or 'heating'"),
+      }),
+      execute: async (filter) => searchOpenWorkOrders(await deps.board.listWorkOrders(), filter),
+    }),
+    getWorkOrder: tool({
+      description: "Get one Work Order by id, open or closed. Returns found: false if it isn't on the Board.",
+      inputSchema: z.object({ workOrderId: z.string() }),
+      execute: async ({ workOrderId }) => {
+        const workOrder = await deps.board.getWorkOrder(workOrderId);
+        return workOrder ? { found: true as const, workOrder } : { found: false as const };
+      },
     }),
     [SUBMIT_PROPOSAL]: tool({
       description: "Submit the single, final Proposal for this Message. Call exactly once, last.",

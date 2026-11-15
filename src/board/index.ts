@@ -1,4 +1,4 @@
-import type { NewWorkOrder, WorkOrder } from "@/domain";
+import type { NewWorkOrder, WorkOrder, WorkOrderUpdate } from "@/domain";
 
 /** Read-only view of the Board. This is all the agent may ever see. */
 export interface BoardReader {
@@ -9,6 +9,30 @@ export interface BoardReader {
 /** The system of record where Work Orders live. */
 export interface Board extends BoardReader {
   createWorkOrder(workOrder: NewWorkOrder): Promise<WorkOrder>;
+  /**
+   * Append new information to an existing Work Order and link the Message it
+   * came from. Rejects if the Work Order doesn't exist.
+   */
+  appendToWorkOrder(id: string, update: WorkOrderUpdate): Promise<WorkOrder>;
+}
+
+/** No Work Order with this id is on the Board. */
+export class WorkOrderNotFoundError extends Error {
+  constructor(readonly workOrderId: string) {
+    super(`Work Order ${workOrderId} is not on the Board.`);
+    this.name = "WorkOrderNotFoundError";
+  }
+}
+
+/**
+ * Wrap a Board so only its read methods are reachable. The agent gets this,
+ * so it cannot write to the Board even by reaching past its type (ADR 0001).
+ */
+export function readOnlyBoard(board: BoardReader): BoardReader {
+  return Object.freeze({
+    listWorkOrders: () => board.listWorkOrders(),
+    getWorkOrder: (id: string) => board.getWorkOrder(id),
+  });
 }
 
 /**
@@ -39,6 +63,18 @@ export class FakeBoard implements Board {
     };
     this.workOrders.push(created);
     return structuredClone(created);
+  }
+
+  async appendToWorkOrder(id: string, update: WorkOrderUpdate): Promise<WorkOrder> {
+    const workOrder = this.workOrders.find((candidate) => candidate.id === id);
+    if (!workOrder) throw new WorkOrderNotFoundError(id);
+    const information = update.information.trim();
+    if (information) {
+      const entry = `Update from Message ${update.messageId}: ${information}`;
+      workOrder.description = workOrder.description ? `${workOrder.description}\n\n${entry}` : entry;
+    }
+    if (!workOrder.messageIds.includes(update.messageId)) workOrder.messageIds.push(update.messageId);
+    return structuredClone(workOrder);
   }
 
   /** The current Board state, safe to serialise and hand back to the browser. */
