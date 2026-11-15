@@ -11,7 +11,8 @@ It ships with about 10 scenarios covering simple creates, non-maintenance Messag
 
 **Blocked by:** 01
 
-**Status:** in-progress
+**Status:** awaiting-merge
+Pull Request: https://github.com/layugjohann/fixline/pull/3
 
 - [x] The golden scenario format holds a starting Board, Property Roster, Message, and expected Proposal
 - [x] There are rule-based graders for classification (maintenance or not), Urgency, Trade, and Unit
@@ -38,3 +39,5 @@ Usage: Implementer 40 input, 23,822 output, 57,297 cache creation, 1,038,597 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-03-2026-11-15T15-47-48-052Z.log`).
 
 Usage: Body writer 2 input, 1,112 output, 41,142 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/3
