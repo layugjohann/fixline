@@ -1,7 +1,14 @@
-import type { CreateWorkOrderOperation, Proposal, ProposalOperation } from "@/domain";
+import {
+  locationId,
+  sameLocation,
+  type CreateWorkOrderOperation,
+  type Proposal,
+  type ProposalOperation,
+  type WorkOrderLocation,
+} from "@/domain";
 import type { ExpectedOperation, ExpectedProposal, ExpectedWorkOrder } from "./scenario";
 
-export const DIMENSIONS = ["classification", "match", "unit", "trade", "urgency"] as const;
+export const DIMENSIONS = ["classification", "count", "match", "location", "trade", "urgency"] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
 
 /** One dimension's grade. "skip" means the dimension doesn't apply (for example, no Work Orders expected or proposed). */
@@ -12,14 +19,21 @@ export type Grade =
 
 /** Grade a Proposal against the expected one, one rule-based grader per dimension. */
 export function gradeProposal(actual: Proposal, expected: ExpectedProposal): Grade[] {
+  const pairs = pairOperations(actual.operations, expected.workOrders);
+  const labelled = expected.workOrders.length > 1;
   return [
     gradeClassification(actual, expected),
-    gradeMatch(actual, expected),
-    gradeWorkOrderField(actual, expected, "unit", (op, exp) => compare(op.unitId, [exp.unitId])),
-    gradeWorkOrderField(actual, expected, "trade", (op, exp) =>
+    gradeCount(actual, expected),
+    gradeMatch(pairs, labelled),
+    gradeWorkOrderField(pairs, labelled, "location", (op, exp) =>
+      sameLocation(op.location, exp.location)
+        ? { ok: true, value: describeLocation(op.location) }
+        : { ok: false, expected: describeLocation(exp.location), got: describeLocation(op.location) },
+    ),
+    gradeWorkOrderField(pairs, labelled, "trade", (op, exp) =>
       compare(op.trade, typeof exp.trade === "string" ? [exp.trade] : exp.trade),
     ),
-    gradeWorkOrderField(actual, expected, "urgency", (op, exp) => compare(op.urgency, [exp.urgency])),
+    gradeWorkOrderField(pairs, labelled, "urgency", (op, exp) => compare(op.urgency, [exp.urgency])),
   ];
 }
 
@@ -38,36 +52,106 @@ function gradeClassification(actual: Proposal, expected: ExpectedProposal): Grad
       };
 }
 
+/** Number of Work Orders: did the agent split the Message into as many operations as there are problems? */
+function gradeCount(actual: Proposal, expected: ExpectedProposal): Grade {
+  const got = actual.operations.length;
+  const wanted = expected.workOrders.length;
+  return got === wanted
+    ? { dimension: "count", status: "pass", detail: countWorkOrders(got) }
+    : { dimension: "count", status: "fail", detail: `expected ${countWorkOrders(wanted)}, got ${countWorkOrders(got)}` };
+}
+
+/** One expected operation and the proposed operation it was paired with. */
+interface Pair {
+  /** Position of the expected operation, used to label it in grade details. */
+  index: number;
+  expected: ExpectedOperation;
+  actual: ProposalOperation;
+}
+
+/**
+ * Pairs proposed operations with expected ones regardless of order, since a
+ * multi-problem Message can list its problems in any order:
+ * 1. an expected attach pairs with a proposed attach to the same Work Order;
+ * 2. an expected new Work Order pairs with the most similar proposed new Work Order
+ *    (location and Trade weigh most, then Urgency);
+ * 3. anything left pairs up in order, so a duplicate created instead of attached is
+ *    still graded by the match dimension.
+ * Operations left unpaired are missing or extra, which only the count dimension grades.
+ */
+function pairOperations(actual: readonly ProposalOperation[], expected: readonly ExpectedOperation[]): Pair[] {
+  const unpaired = actual.map((_, index) => index);
+  const pairedWith = new Map<number, number>();
+  const take = (expectedIndex: number, actualIndex: number) => {
+    pairedWith.set(expectedIndex, actualIndex);
+    unpaired.splice(unpaired.indexOf(actualIndex), 1);
+  };
+
+  expected.forEach((wanted, index) => {
+    if (wanted.type !== "attach") return;
+    const found = unpaired.find((candidate) => {
+      const operation = actual[candidate]!;
+      return operation.type === "attach" && operation.workOrderId === wanted.workOrderId;
+    });
+    if (found !== undefined) take(index, found);
+  });
+
+  expected.forEach((wanted, index) => {
+    if (wanted.type !== "create") return;
+    let best: number | undefined;
+    let bestScore = -1;
+    for (const candidate of unpaired) {
+      const operation = actual[candidate]!;
+      if (operation.type !== "create") continue;
+      const score = similarity(operation, wanted);
+      if (score > bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+    if (best !== undefined) take(index, best);
+  });
+
+  expected.forEach((_, index) => {
+    if (pairedWith.has(index) || unpaired.length === 0) return;
+    take(index, unpaired[0]!);
+  });
+
+  return expected.flatMap((wanted, index) => {
+    const actualIndex = pairedWith.get(index);
+    return actualIndex === undefined ? [] : [{ index, expected: wanted, actual: actual[actualIndex]! }];
+  });
+}
+
+function similarity(operation: CreateWorkOrderOperation, wanted: ExpectedWorkOrder): number {
+  const trades: readonly string[] = typeof wanted.trade === "string" ? [wanted.trade] : wanted.trade;
+  return (
+    (sameLocation(operation.location, wanted.location) ? 2 : 0) +
+    (trades.includes(operation.trade) ? 2 : 0) +
+    (operation.urgency === wanted.urgency ? 1 : 0)
+  );
+}
+
 /** Where an operation lands: a new Work Order, or the existing Work Order it attaches to. */
 function matchTarget(operation: ProposalOperation | ExpectedOperation): string {
   return operation.type === "attach" ? operation.workOrderId : "new Work Order";
 }
 
 /**
- * Match target: for each operation, did the agent attach to the right existing
- * Work Order, or create a new one when nothing on the Board matched?
+ * Match target: for each paired operation, did the agent attach to the right
+ * existing Work Order, or create a new one when nothing on the Board matched?
  */
-function gradeMatch(actual: Proposal, expected: ExpectedProposal): Grade {
-  const dimension = "match";
-  const operations = actual.operations;
-  const wanted = expected.workOrders;
-  if (operations.length === 0 && wanted.length === 0) {
-    return { dimension, status: "skip", detail: "no Work Orders expected or proposed" };
+function gradeMatch(pairs: readonly Pair[], labelled: boolean): Grade {
+  if (pairs.length === 0) {
+    return { dimension: "match", status: "skip", detail: "no Work Orders both expected and proposed" };
   }
-  if (operations.length !== wanted.length) {
-    return { dimension, status: "fail", detail: countMismatch(wanted.length, operations.length) };
-  }
-  const values: string[] = [];
-  const problems: string[] = [];
-  operations.forEach((operation, index) => {
-    const result = compare(matchTarget(operation), [matchTarget(wanted[index]!)]);
-    const label = wanted.length > 1 ? `Work Order ${index + 1}: ` : "";
-    if (result.ok) values.push(`${label}${result.value}`);
-    else problems.push(`${label}expected ${result.expected}, got ${result.got}`);
-  });
-  return problems.length > 0
-    ? { dimension, status: "fail", detail: problems.join("; ") }
-    : { dimension, status: "pass", detail: values.join("; ") };
+  return summarise(
+    "match",
+    pairs.map((pair) => ({
+      label: label(pair, labelled),
+      result: compare(matchTarget(pair.actual), [matchTarget(pair.expected)]),
+    })),
+  );
 }
 
 type Comparison = { ok: true; value: string } | { ok: false; expected: string; got: string };
@@ -79,48 +163,45 @@ function compare(got: string, acceptable: readonly string[]): Comparison {
 }
 
 /**
- * Pairs proposed Work Orders with expected ones in order and checks one field of each.
- * A missing or extra Work Order fails the dimension. Only pairs where a new Work Order
- * was both expected and proposed are checked: attaching (or wrongly creating instead
- * of attaching) is graded by the match dimension alone.
+ * Checks one field of each paired new Work Order. Only pairs where a new Work
+ * Order was both expected and proposed are checked: attaching (or wrongly
+ * creating instead of attaching) is graded by the match dimension alone.
  */
 function gradeWorkOrderField(
-  actual: Proposal,
-  expected: ExpectedProposal,
-  dimension: Exclude<Dimension, "classification" | "match">,
+  pairs: readonly Pair[],
+  labelled: boolean,
+  dimension: Exclude<Dimension, "classification" | "count" | "match">,
   check: (operation: CreateWorkOrderOperation, expected: ExpectedWorkOrder) => Comparison,
 ): Grade {
-  const operations = actual.operations;
-  const wanted = expected.workOrders;
-  if (operations.length === 0 && wanted.length === 0) {
-    return { dimension, status: "skip", detail: "no Work Orders expected or proposed" };
+  const checks = pairs.flatMap((pair) =>
+    pair.actual.type === "create" && pair.expected.type === "create"
+      ? [{ label: label(pair, labelled), result: check(pair.actual, pair.expected) }]
+      : [],
+  );
+  if (checks.length === 0) {
+    return { dimension, status: "skip", detail: "no new Work Order both expected and proposed" };
   }
-  if (operations.length !== wanted.length) {
-    return { dimension, status: "fail", detail: countMismatch(wanted.length, operations.length) };
-  }
+  return summarise(dimension, checks);
+}
 
+function summarise(dimension: Dimension, checks: readonly { label: string; result: Comparison }[]): Grade {
   const values: string[] = [];
   const problems: string[] = [];
-  let checked = 0;
-  operations.forEach((operation, index) => {
-    const wantedOperation = wanted[index]!;
-    if (operation.type !== "create" || wantedOperation.type !== "create") return;
-    checked += 1;
-    const result = check(operation, wantedOperation);
-    const label = wanted.length > 1 ? `Work Order ${index + 1}: ` : "";
+  for (const { label, result } of checks) {
     if (result.ok) values.push(`${label}${result.value}`);
     else problems.push(`${label}expected ${result.expected}, got ${result.got}`);
-  });
-  if (checked === 0) {
-    return { dimension, status: "skip", detail: "no new Work Order both expected and proposed" };
   }
   return problems.length > 0
     ? { dimension, status: "fail", detail: problems.join("; ") }
     : { dimension, status: "pass", detail: values.join("; ") };
 }
 
-function countMismatch(expected: number, got: number): string {
-  return `expected ${countWorkOrders(expected)}, got ${countWorkOrders(got)}`;
+function label(pair: Pair, labelled: boolean): string {
+  return labelled ? `Work Order ${pair.index + 1}: ` : "";
+}
+
+function describeLocation(location: WorkOrderLocation): string {
+  return `${location.type === "unit" ? "Unit" : "Common Area"} ${locationId(location)}`;
 }
 
 function countWorkOrders(count: number): string {

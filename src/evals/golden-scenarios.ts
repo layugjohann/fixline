@@ -2,7 +2,7 @@
  * The golden dataset: written before tuning the agent to pass it, so it defines
  * quality up front. Synthetic data only (ADR 0002).
  */
-import type { WorkOrder } from "@/domain";
+import type { WorkOrder, WorkOrderLocation } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { parseScenarios } from "./scenario";
 
@@ -10,11 +10,14 @@ const MAYA = { email: "maya.okafor@example.com", name: "Maya Okafor" }; // Harbo
 const LUIS = { email: "luis.romero@example.com", name: "Luis Romero" }; // Harbor View 3B
 const PRIYA = { email: "priya.nair@example.com", name: "Priya Nair" }; // Quay Court 101
 
+const unit = (unitId: string): WorkOrderLocation => ({ type: "unit", unitId });
+const commonArea = (commonAreaId: string): WorkOrderLocation => ({ type: "common-area", commonAreaId });
+
 /** An unrelated open Work Order, so scenarios don't all start from an empty Board. */
 const existingWorkOrders: WorkOrder[] = [
   {
     id: "WO-1",
-    unitId: "quay-court-102",
+    location: unit("quay-court-102"),
     title: "Broken window latch",
     description: "Bedroom window latch won't close.",
     trade: "carpentry",
@@ -27,7 +30,7 @@ const existingWorkOrders: WorkOrder[] = [
 /** Maya's dripping kitchen tap, already on the Board. */
 const mayaKitchenTap: WorkOrder = {
   id: "WO-2",
-  unitId: "harbor-view-2a",
+  location: unit("harbor-view-2a"),
   title: "Dripping kitchen sink tap",
   description: "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
   trade: "plumbing",
@@ -39,7 +42,7 @@ const mayaKitchenTap: WorkOrder = {
 /** Luis's broken heating, reported last week and still open. */
 const luisHeating: WorkOrder = {
   id: "WO-3",
-  unitId: "harbor-view-3b",
+  location: unit("harbor-view-3b"),
   title: "Radiators not heating",
   description: "None of the radiators in the flat get warm; the boiler display shows no error.",
   trade: "hvac",
@@ -51,13 +54,25 @@ const luisHeating: WorkOrder = {
 /** Priya's fridge, repaired and closed last month. */
 const priyaFridgeClosed: WorkOrder = {
   id: "WO-4",
-  unitId: "quay-court-101",
+  location: unit("quay-court-101"),
   title: "Fridge not cooling",
   description: "Fridge stopped getting cold; thermostat replaced.",
   trade: "appliance",
   urgency: "urgent",
   status: "closed",
   messageIds: ["msg-seed-4"],
+};
+
+/** A leaking washing machine in Harbor View's laundry room, reported by Luis (3B). */
+const laundryMachineLeak: WorkOrder = {
+  id: "WO-5",
+  location: commonArea("harbor-view-laundry-room"),
+  title: "Washing machine leaking in laundry room",
+  description: "The washing machine nearest the door leaks water across the laundry room floor during the spin cycle.",
+  trade: "appliance",
+  urgency: "urgent",
+  status: "open",
+  messageIds: ["msg-seed-5"],
 };
 
 export const goldenScenarios = parseScenarios([
@@ -134,7 +149,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "harbor-view-3b", trade: "carpentry", urgency: "routine" }],
+      workOrders: [{ location: unit("harbor-view-3b"), trade: "carpentry", urgency: "routine" }],
     },
   },
   {
@@ -151,7 +166,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "quay-court-101", trade: ["electrical", "general"], urgency: "routine" }],
+      workOrders: [{ location: unit("quay-court-101"), trade: ["electrical", "general"], urgency: "routine" }],
     },
   },
 
@@ -170,7 +185,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "quay-court-101", trade: "appliance", urgency: "urgent" }],
+      workOrders: [{ location: unit("quay-court-101"), trade: "appliance", urgency: "urgent" }],
     },
   },
   {
@@ -187,7 +202,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "harbor-view-2a", trade: "plumbing", urgency: "urgent" }],
+      workOrders: [{ location: unit("harbor-view-2a"), trade: "plumbing", urgency: "urgent" }],
     },
   },
 
@@ -206,7 +221,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "quay-court-101", trade: "plumbing", urgency: "emergency" }],
+      workOrders: [{ location: unit("quay-court-101"), trade: "plumbing", urgency: "emergency" }],
     },
   },
   {
@@ -223,7 +238,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "harbor-view-3b", trade: "electrical", urgency: "emergency" }],
+      workOrders: [{ location: unit("harbor-view-3b"), trade: "electrical", urgency: "emergency" }],
     },
   },
   {
@@ -240,7 +255,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "harbor-view-2a", trade: "locksmith", urgency: "emergency" }],
+      workOrders: [{ location: unit("harbor-view-2a"), trade: "locksmith", urgency: "emergency" }],
     },
   },
 
@@ -310,7 +325,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "harbor-view-2a", trade: "plumbing", urgency: "routine" }],
+      workOrders: [{ location: unit("harbor-view-2a"), trade: "plumbing", urgency: "routine" }],
     },
   },
   {
@@ -327,7 +342,7 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "harbor-view-3b", trade: "plumbing", urgency: "urgent" }],
+      workOrders: [{ location: unit("harbor-view-3b"), trade: "plumbing", urgency: "urgent" }],
     },
   },
   {
@@ -344,7 +359,93 @@ export const goldenScenarios = parseScenarios([
     },
     expected: {
       classification: "maintenance",
-      workOrders: [{ unitId: "quay-court-101", trade: "appliance", urgency: "urgent" }],
+      workOrders: [{ location: unit("quay-court-101"), trade: "appliance", urgency: "urgent" }],
+    },
+  },
+
+  // --- Multi-problem Messages -----------------------------------------------
+  {
+    id: "multi-problem-attach-and-create",
+    description: "One Message about the open heating Work Order and a new dripping tap: one attach plus one create.",
+    tags: ["multi-problem", "match"],
+    board: [...existingWorkOrders, luisHeating],
+    propertyRoster,
+    message: {
+      id: "msg-heater-and-tap",
+      sender: LUIS,
+      receivedAt: "2026-11-15T18:40:00Z",
+      body: "The heater is dead AGAIN, the radiators are stone cold just like last week. Also, unrelated, the kitchen tap has started dripping a little. That one's not a big deal, whenever someone's around.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [
+        { type: "attach", workOrderId: "WO-3" },
+        { location: unit("harbor-view-3b"), trade: "plumbing", urgency: "routine" },
+      ],
+    },
+  },
+  {
+    id: "multi-problem-three-problems",
+    description:
+      "Three separate problems in one Message, two in the Tenant's Unit and one in a Common Area: three new Work Orders.",
+    tags: ["multi-problem", "common-area"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-three-problems",
+      sender: PRIYA,
+      receivedAt: "2026-11-16T09:30:00Z",
+      body:
+        "Hi, a few things while I think of it:\n" +
+        "1) the oven won't heat up at all since Sunday, so I can't cook anything, could someone come this week?\n" +
+        "2) the bathroom extractor fan has stopped working, no rush on that one.\n" +
+        "3) not my flat, but the light in the building's bike store downstairs is out. Not urgent.\n" +
+        "Thanks, Priya (101)",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [
+        { location: unit("quay-court-101"), trade: "appliance", urgency: "urgent" },
+        { location: unit("quay-court-101"), trade: ["electrical", "hvac"], urgency: "routine" },
+        { location: commonArea("quay-court-bike-store"), trade: ["electrical", "general"], urgency: "routine" },
+      ],
+    },
+  },
+
+  // --- Common Areas -----------------------------------------------------------
+  {
+    id: "common-area-new-report",
+    description: "A problem in a shared stairwell is recorded against the Common Area, not the Sender's Unit.",
+    tags: ["common-area"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-stairwell-light",
+      sender: MAYA,
+      receivedAt: "2026-11-16T07:45:00Z",
+      body: "Just a heads up, one of the lights in the stairwell between the 2nd and 3rd floor keeps flickering. It still works, so no rush.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ location: commonArea("harbor-view-stairwell"), trade: ["electrical", "general"], urgency: "routine" }],
+    },
+  },
+  {
+    id: "common-area-merge-across-units",
+    description:
+      "A Tenant in 2A reports the laundry room leak already raised from 3B: it attaches to the Common Area Work Order.",
+    tags: ["common-area", "match", "duplicate"],
+    board: [...existingWorkOrders, mayaKitchenTap, laundryMachineLeak],
+    propertyRoster,
+    message: {
+      id: "msg-laundry-leak",
+      sender: MAYA,
+      receivedAt: "2026-11-16T11:20:00Z",
+      body: "The washing machine by the door in the laundry room is leaking all over the floor again when it spins. I nearly slipped. Someone should look at it.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ type: "attach", workOrderId: "WO-5" }],
     },
   },
 ]);

@@ -12,6 +12,11 @@ export const propertyRoster: PropertyRoster = PropertyRosterSchema.parse({
         { id: "harbor-view-2a", propertyId: "harbor-view", label: "2A" },
         { id: "harbor-view-3b", propertyId: "harbor-view", label: "3B" },
       ],
+      commonAreas: [
+        { id: "harbor-view-lobby", propertyId: "harbor-view", name: "Lobby" },
+        { id: "harbor-view-laundry-room", propertyId: "harbor-view", name: "Laundry room" },
+        { id: "harbor-view-stairwell", propertyId: "harbor-view", name: "Stairwell" },
+      ],
     },
     {
       id: "quay-court",
@@ -20,6 +25,10 @@ export const propertyRoster: PropertyRoster = PropertyRosterSchema.parse({
       units: [
         { id: "quay-court-101", propertyId: "quay-court", label: "101" },
         { id: "quay-court-102", propertyId: "quay-court", label: "102" },
+      ],
+      commonAreas: [
+        { id: "quay-court-lobby", propertyId: "quay-court", name: "Lobby" },
+        { id: "quay-court-bike-store", propertyId: "quay-court", name: "Bike store" },
       ],
     },
   ],

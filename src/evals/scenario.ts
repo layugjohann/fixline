@@ -4,13 +4,16 @@ import {
   PropertyRosterSchema,
   TradeSchema,
   UrgencySchema,
+  WorkOrderLocationSchema,
   WorkOrderSchema,
+  locationId,
 } from "@/domain";
 
 /** One Work Order the expected Proposal should create. */
 export const ExpectedWorkOrderSchema = z.object({
   type: z.literal("create").default("create"),
-  unitId: z.string(),
+  /** The Unit, or the Common Area for a problem in a shared space. */
+  location: WorkOrderLocationSchema,
   /** The Trade, or the list of Trades that are all acceptable for an ambiguous problem. */
   trade: z.union([TradeSchema, z.array(TradeSchema).nonempty()]),
   urgency: UrgencySchema,
@@ -31,7 +34,7 @@ export type ExpectedOperation = z.infer<typeof ExpectedOperationSchema>;
 /** The parts of a Proposal the rule-based graders check. */
 export const ExpectedProposalSchema = z.object({
   classification: z.enum(["maintenance", "not-maintenance"]),
-  /** One entry per expected operation, in order. */
+  /** One entry per expected operation. Order doesn't matter: graders pair them with the proposed ones. */
   workOrders: z.array(ExpectedOperationSchema),
 });
 export type ExpectedProposal = z.infer<typeof ExpectedProposalSchema>;
@@ -52,6 +55,7 @@ export const GoldenScenarioSchema = z
   })
   .superRefine((scenario, ctx) => {
     const unitIds = new Set(scenario.propertyRoster.properties.flatMap((p) => p.units.map((u) => u.id)));
+    const commonAreaIds = new Set(scenario.propertyRoster.properties.flatMap((p) => p.commonAreas.map((c) => c.id)));
     scenario.expected.workOrders.forEach((workOrder, index) => {
       if (workOrder.type === "attach") {
         const target = scenario.board.find((candidate) => candidate.id === workOrder.workOrderId);
@@ -64,11 +68,13 @@ export const GoldenScenarioSchema = z
         }
         return;
       }
-      if (!unitIds.has(workOrder.unitId)) {
+      const { location } = workOrder;
+      const known = location.type === "unit" ? unitIds.has(location.unitId) : commonAreaIds.has(location.commonAreaId);
+      if (!known) {
         ctx.addIssue({
           code: "custom",
-          path: ["expected", "workOrders", index, "unitId"],
-          message: `Unit ${workOrder.unitId} is not in the scenario's Property Roster`,
+          path: ["expected", "workOrders", index, "location"],
+          message: `${location.type === "unit" ? "Unit" : "Common Area"} ${locationId(location)} is not in the scenario's Property Roster`,
         });
       }
     });
