@@ -4,14 +4,14 @@
 
 **Blocked by:** 04
 
-**Status:** awaiting-merge
+**Status:** done
 Pull Request: https://github.com/layugjohann/fixline/pull/5
 
-- [ ] The Property Roster fixture includes Common Areas per Property
-- [ ] Work Orders can belong to a Unit or a Common Area
-- [ ] There are graders for the number of Work Orders and for location (Unit or Common Area)
-- [ ] Scenarios cover a two-problem Message (attach + create), a three-problem Message, and Common Area reports from two different Units merging into one Work Order
-- [ ] A deterministic test covers a multi-operation Proposal being applied completely
+- [x] The Property Roster fixture includes Common Areas per Property
+- [x] Work Orders can belong to a Unit or a Common Area
+- [x] There are graders for the number of Work Orders and for location (Unit or Common Area)
+- [x] Scenarios cover a two-problem Message (attach + create), a three-problem Message, and Common Area reports from two different Units merging into one Work Order
+- [x] A deterministic test covers a multi-operation Proposal being applied completely
 
 ## Comments
 
