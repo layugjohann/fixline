@@ -4,7 +4,8 @@
 
 **Blocked by:** 04
 
-**Status:** in-progress
+**Status:** awaiting-merge
+Pull Request: https://github.com/layugjohann/fixline/pull/5
 
 - [ ] The Property Roster fixture includes Common Areas per Property
 - [ ] Work Orders can belong to a Unit or a Common Area
@@ -26,3 +27,5 @@ Usage: Implementer 46 input, 27,041 output, 93,817 cache creation, 1,747,151 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-05-2026-11-15T16-22-13-192Z.log`).
 
 Usage: Body writer 2 input, 1,292 output, 37,465 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/5
