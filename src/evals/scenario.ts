@@ -9,6 +9,7 @@ import {
 
 /** One Work Order the expected Proposal should create. */
 export const ExpectedWorkOrderSchema = z.object({
+  type: z.literal("create").default("create"),
   unitId: z.string(),
   /** The Trade, or the list of Trades that are all acceptable for an ambiguous problem. */
   trade: z.union([TradeSchema, z.array(TradeSchema).nonempty()]),
@@ -16,10 +17,22 @@ export const ExpectedWorkOrderSchema = z.object({
 });
 export type ExpectedWorkOrder = z.infer<typeof ExpectedWorkOrderSchema>;
 
+/** An existing open Work Order the expected Proposal should attach the Message to. */
+export const ExpectedAttachSchema = z.object({
+  type: z.literal("attach"),
+  workOrderId: z.string(),
+});
+export type ExpectedAttach = z.infer<typeof ExpectedAttachSchema>;
+
+/** One expected operation: a new Work Order (the default), or an attach to an existing one. */
+export const ExpectedOperationSchema = z.union([ExpectedAttachSchema, ExpectedWorkOrderSchema]);
+export type ExpectedOperation = z.infer<typeof ExpectedOperationSchema>;
+
 /** The parts of a Proposal the rule-based graders check. */
 export const ExpectedProposalSchema = z.object({
   classification: z.enum(["maintenance", "not-maintenance"]),
-  workOrders: z.array(ExpectedWorkOrderSchema),
+  /** One entry per expected operation, in order. */
+  workOrders: z.array(ExpectedOperationSchema),
 });
 export type ExpectedProposal = z.infer<typeof ExpectedProposalSchema>;
 
@@ -40,6 +53,17 @@ export const GoldenScenarioSchema = z
   .superRefine((scenario, ctx) => {
     const unitIds = new Set(scenario.propertyRoster.properties.flatMap((p) => p.units.map((u) => u.id)));
     scenario.expected.workOrders.forEach((workOrder, index) => {
+      if (workOrder.type === "attach") {
+        const target = scenario.board.find((candidate) => candidate.id === workOrder.workOrderId);
+        if (target?.status !== "open") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["expected", "workOrders", index, "workOrderId"],
+            message: `Work Order ${workOrder.workOrderId} is not an open Work Order on the scenario's Board`,
+          });
+        }
+        return;
+      }
       if (!unitIds.has(workOrder.unitId)) {
         ctx.addIssue({
           code: "custom",

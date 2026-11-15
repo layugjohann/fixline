@@ -28,14 +28,18 @@ function toolCallTurn(toolName: string, input: unknown) {
 function perfectProposal(scenario: GoldenScenario): Proposal {
   return {
     classification: scenario.expected.classification,
-    operations: scenario.expected.workOrders.map((workOrder) => ({
-      type: "create",
-      unitId: workOrder.unitId,
-      title: "Problem",
-      description: "Described problem.",
-      trade: typeof workOrder.trade === "string" ? workOrder.trade : workOrder.trade[0]!,
-      urgency: workOrder.urgency,
-    })),
+    operations: scenario.expected.workOrders.map((workOrder) =>
+      workOrder.type === "attach"
+        ? { type: "attach", workOrderId: workOrder.workOrderId, information: "New information." }
+        : {
+            type: "create",
+            unitId: workOrder.unitId,
+            title: "Problem",
+            description: "Described problem.",
+            trade: typeof workOrder.trade === "string" ? workOrder.trade : workOrder.trade[0]!,
+            urgency: workOrder.urgency,
+          },
+    ),
     reasoning: "Scripted.",
   };
 }
@@ -74,9 +78,24 @@ afterEach(async () => {
 describe("golden dataset", () => {
   it("has about ten scenarios covering non-maintenance and every Urgency", () => {
     expect(goldenScenarios.length).toBeGreaterThanOrEqual(10);
-    const urgencies = new Set(goldenScenarios.flatMap((s) => s.expected.workOrders.map((w) => w.urgency)));
+    const urgencies = new Set(
+      goldenScenarios.flatMap((s) => s.expected.workOrders.flatMap((w) => (w.type === "create" ? [w.urgency] : []))),
+    );
     expect(urgencies).toEqual(new Set(["emergency", "urgent", "routine"]));
     expect(goldenScenarios.some((s) => s.expected.classification === "not-maintenance")).toBe(true);
+  });
+
+  it("covers duplicates, follow-ups and similar-but-different problems that must not be matched", () => {
+    const tagged = (tag: string) => goldenScenarios.filter((s) => s.tags.includes(tag));
+    const attaches = (s: GoldenScenario) => s.expected.workOrders.some((w) => w.type === "attach");
+    expect(tagged("duplicate").length).toBeGreaterThan(0);
+    expect(tagged("follow-up").length).toBeGreaterThan(0);
+    expect([...tagged("duplicate"), ...tagged("follow-up")].every(attaches)).toBe(true);
+    const different = tagged("similar-but-different");
+    expect(different.length).toBeGreaterThan(0);
+    expect(different.some(attaches)).toBe(false);
+    // Each similar-but-different scenario has a lookalike Work Order on its Board to resist.
+    expect(different.every((s) => s.board.length > 1)).toBe(true);
   });
 });
 
@@ -101,7 +120,9 @@ describe("eval runner", () => {
     const burstPipe = scenario("emergency-burst-pipe");
     const rent = scenario("not-maintenance-rent-question");
     const wrongUrgency = perfectProposal(burstPipe);
-    wrongUrgency.operations[0]!.urgency = "routine";
+    const pipeOperation = wrongUrgency.operations[0]!;
+    if (pipeOperation.type !== "create") throw new Error("Expected a create operation");
+    pipeOperation.urgency = "routine";
     const rentAsWorkOrder: Proposal = {
       ...perfectProposal(burstPipe),
       classification: "maintenance",
@@ -130,6 +151,43 @@ describe("eval runner", () => {
     const printed = formatScorecard(scorecard);
     expect(printed).toContain("emergency-burst-pipe › urgency: expected emergency, got routine");
     expect(printed).toContain("not-maintenance-rent-question › classification: expected not-maintenance, got maintenance");
+  });
+
+  it("grades the match target: a duplicate created instead of attached, and a wrong attach", async () => {
+    const duplicate = scenario("match-duplicate-report-same-tenant");
+    const different = scenario("no-match-different-fixture-same-unit");
+    const createdDuplicate: Proposal = {
+      classification: "maintenance",
+      operations: [
+        {
+          type: "create",
+          unitId: "harbor-view-2a",
+          title: "Dripping tap",
+          description: "Kitchen tap drips.",
+          trade: "plumbing",
+          urgency: "urgent",
+        },
+      ],
+      reasoning: "Scripted.",
+    };
+    const wronglyAttached: Proposal = {
+      classification: "maintenance",
+      operations: [{ type: "attach", workOrderId: "WO-2", information: "Shower drains slowly." }],
+      reasoning: "Scripted.",
+    };
+
+    const { scorecard } = await runEvals([duplicate, different], {
+      model: scriptedModel({ [duplicate.message.id]: createdDuplicate, [different.message.id]: wronglyAttached }),
+    });
+
+    const [duplicateResult, differentResult] = scorecard.scenarios;
+    expect(duplicateResult!.grades.filter((g) => g.status === "fail")).toEqual([
+      { dimension: "match", status: "fail", detail: "expected WO-2, got new Work Order" },
+    ]);
+    expect(differentResult!.grades.filter((g) => g.status === "fail")).toEqual([
+      { dimension: "match", status: "fail", detail: "expected new Work Order, got WO-2" },
+    ]);
+    expect(formatScorecard(scorecard)).toContain("match-duplicate-report-same-tenant › match: expected WO-2, got new Work Order");
   });
 
   it("writes a machine-readable scorecard and one Intake-format trace per scenario", async () => {

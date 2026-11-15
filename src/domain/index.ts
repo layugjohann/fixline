@@ -92,6 +92,13 @@ export type WorkOrder = z.infer<typeof WorkOrderSchema>;
 /** Fields needed to put a new Work Order on the Board. */
 export type NewWorkOrder = Omit<WorkOrder, "id" | "status">;
 
+/** New information from a Message, appended to an existing Work Order. */
+export interface WorkOrderUpdate {
+  information: string;
+  /** The Message the information came from, linked to the Work Order. */
+  messageId: string;
+}
+
 // --- Proposal --------------------------------------------------------------
 
 export const CreateWorkOrderOperationSchema = z.object({
@@ -104,7 +111,19 @@ export const CreateWorkOrderOperationSchema = z.object({
 });
 export type CreateWorkOrderOperation = z.infer<typeof CreateWorkOrderOperationSchema>;
 
-export const ProposalOperationSchema = CreateWorkOrderOperationSchema;
+export const AttachToWorkOrderOperationSchema = z.object({
+  type: z.literal("attach"),
+  workOrderId: z.string().describe("Id of the open Work Order this Message is about"),
+  information: z
+    .string()
+    .describe("The new information this Message adds to the Work Order, in a sentence or two"),
+});
+export type AttachToWorkOrderOperation = z.infer<typeof AttachToWorkOrderOperationSchema>;
+
+export const ProposalOperationSchema = z.discriminatedUnion("type", [
+  CreateWorkOrderOperationSchema,
+  AttachToWorkOrderOperationSchema,
+]);
 export type ProposalOperation = z.infer<typeof ProposalOperationSchema>;
 
 /**

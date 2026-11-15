@@ -1,5 +1,5 @@
 import type { LanguageModel } from "ai";
-import type { Board } from "@/board";
+import { readOnlyBoard, type Board } from "@/board";
 import type { Message, Proposal, PropertyRoster, RoutingDecision, Trace, WorkOrder } from "@/domain";
 import { runAgent } from "./agent";
 import { applyProposal } from "./applier";
@@ -19,6 +19,8 @@ export interface IntakeResult {
   trace: Trace;
   /** Work Orders created on the Board by applying the Proposal. */
   createdWorkOrders: WorkOrder[];
+  /** Existing Work Orders the Proposal attached this Message to, as they are after the update. */
+  updatedWorkOrders: WorkOrder[];
 }
 
 /**
@@ -30,16 +32,19 @@ export async function runIntake(message: Message, deps: IntakeDependencies): Pro
   const { proposal, steps } = await runAgent(message, {
     model: deps.model,
     propertyRoster: deps.propertyRoster,
+    board: readOnlyBoard(deps.board),
   });
 
   const routing = decideRouting(proposal);
-  const createdWorkOrders =
-    routing.outcome === "auto-apply" ? await applyProposal(proposal, message, deps.board) : [];
+  const changes =
+    routing.outcome === "auto-apply"
+      ? await applyProposal(proposal, message, deps.board)
+      : { createdWorkOrders: [], updatedWorkOrders: [] };
 
   return {
     proposal,
     routing,
-    createdWorkOrders,
+    ...changes,
     trace: {
       messageId: message.id,
       steps: [...steps, { type: "proposal", proposal }, { type: "routing", decision: routing }],

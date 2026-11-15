@@ -24,6 +24,42 @@ const existingWorkOrders: WorkOrder[] = [
   },
 ];
 
+/** Maya's dripping kitchen tap, already on the Board. */
+const mayaKitchenTap: WorkOrder = {
+  id: "WO-2",
+  unitId: "harbor-view-2a",
+  title: "Dripping kitchen sink tap",
+  description: "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
+  trade: "plumbing",
+  urgency: "urgent",
+  status: "open",
+  messageIds: ["msg-seed-2"],
+};
+
+/** Luis's broken heating, reported last week and still open. */
+const luisHeating: WorkOrder = {
+  id: "WO-3",
+  unitId: "harbor-view-3b",
+  title: "Radiators not heating",
+  description: "None of the radiators in the flat get warm; the boiler display shows no error.",
+  trade: "hvac",
+  urgency: "urgent",
+  status: "open",
+  messageIds: ["msg-seed-3"],
+};
+
+/** Priya's fridge, repaired and closed last month. */
+const priyaFridgeClosed: WorkOrder = {
+  id: "WO-4",
+  unitId: "quay-court-101",
+  title: "Fridge not cooling",
+  description: "Fridge stopped getting cold; thermostat replaced.",
+  trade: "appliance",
+  urgency: "urgent",
+  status: "closed",
+  messageIds: ["msg-seed-4"],
+};
+
 export const goldenScenarios = parseScenarios([
   // --- Non-maintenance Messages -------------------------------------------
   {
@@ -205,6 +241,110 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ unitId: "harbor-view-2a", trade: "locksmith", urgency: "emergency" }],
+    },
+  },
+
+  // --- Matching existing Work Orders ---------------------------------------
+  {
+    id: "match-duplicate-report-same-tenant",
+    description: "The same Tenant reports a problem already on the Board, so the Message attaches to it.",
+    tags: ["match", "duplicate"],
+    board: [...existingWorkOrders, mayaKitchenTap],
+    propertyRoster,
+    message: {
+      id: "msg-tap-duplicate",
+      sender: MAYA,
+      receivedAt: "2026-11-12T08:40:00Z",
+      body: "Hi, not sure if my last email got through, so writing again: the tap over my kitchen sink won't stop dripping. It's getting worse and I'm emptying a bowl under it twice a day now.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ type: "attach", workOrderId: "WO-2" }],
+    },
+  },
+  {
+    id: "match-angry-follow-up",
+    description: "An angry 'still broken' chaser is an update to the open Work Order, not a new one.",
+    tags: ["match", "follow-up"],
+    board: [...existingWorkOrders, luisHeating],
+    propertyRoster,
+    message: {
+      id: "msg-heating-chaser",
+      sender: LUIS,
+      receivedAt: "2026-11-13T07:55:00Z",
+      body: "STILL NO HEATING!!! I reported this a WEEK ago and nobody has come. It was 12 degrees in my living room this morning. This is ridiculous, when is someone actually going to fix it??",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ type: "attach", workOrderId: "WO-3" }],
+    },
+  },
+  {
+    id: "match-follow-up-with-new-detail",
+    description: "A calm follow-up adding a detail to an open Work Order attaches to it.",
+    tags: ["match", "follow-up"],
+    board: [mayaKitchenTap, luisHeating],
+    propertyRoster,
+    message: {
+      id: "msg-tap-access",
+      sender: MAYA,
+      receivedAt: "2026-11-13T12:10:00Z",
+      body: "About the dripping kitchen tap: I'll be working from home all of Thursday if that's easier for the plumber to get in. Also the drip seems to come from the base of the tap, not the spout.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ type: "attach", workOrderId: "WO-2" }],
+    },
+  },
+  {
+    id: "no-match-different-fixture-same-unit",
+    description: "A different plumbing problem in the same Unit is a new Work Order, not the open tap one.",
+    tags: ["match", "similar-but-different"],
+    board: [...existingWorkOrders, mayaKitchenTap],
+    propertyRoster,
+    message: {
+      id: "msg-shower-drain",
+      sender: MAYA,
+      receivedAt: "2026-11-14T19:30:00Z",
+      body: "The shower in the bathroom is draining really slowly, I end up standing in a few inches of water by the end. No leaks anywhere, it just takes ages to go down. Not urgent, whenever someone is free.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ unitId: "harbor-view-2a", trade: "plumbing", urgency: "routine" }],
+    },
+  },
+  {
+    id: "no-match-same-problem-different-unit",
+    description: "The same kind of problem in another Tenant's Unit is a new Work Order for that Unit.",
+    tags: ["match", "similar-but-different"],
+    board: [...existingWorkOrders, mayaKitchenTap],
+    propertyRoster,
+    message: {
+      id: "msg-luis-tap",
+      sender: LUIS,
+      receivedAt: "2026-11-14T09:05:00Z",
+      body: "My kitchen sink tap has started dripping non-stop and there's a bit of water collecting in the cupboard underneath. Could someone come and have a look this week?",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ unitId: "harbor-view-3b", trade: "plumbing", urgency: "urgent" }],
+    },
+  },
+  {
+    id: "no-match-closed-work-order-recurs",
+    description: "A problem that comes back after its Work Order was closed needs a new Work Order.",
+    tags: ["match", "similar-but-different"],
+    board: [...existingWorkOrders, priyaFridgeClosed],
+    propertyRoster,
+    message: {
+      id: "msg-fridge-again",
+      sender: PRIYA,
+      receivedAt: "2026-11-15T08:20:00Z",
+      body: "The fridge you fixed last month has stopped getting cold again. Milk went off overnight. Can someone come back out this week?",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ unitId: "quay-court-101", trade: "appliance", urgency: "urgent" }],
     },
   },
 ]);
