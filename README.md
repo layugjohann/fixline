@@ -44,6 +44,18 @@ npm run dev                  # open http://localhost:3000 and press "Run Intake"
 ./scripts/setup.sh
 ```
 
+### Evals
+
+The golden scenarios live in `src/evals/golden-scenarios.ts`. Each one has a starting Board, a Property Roster, a Message, and the expected Proposal. The runner sends each scenario through Intake against a fresh fake Board using the configured model (`GROQ_API_KEY` from `.env.local`). Rule-based graders score classification, Unit, Trade and Urgency, and the runner prints a scorecard.
+
+```sh
+npm run eval                                   # all scenarios
+npm run eval -- --tag emergency                # filter by tag
+npm run eval -- --scenario emergency-burst-pipe --out eval-runs/pipe
+```
+
+Each run writes `scorecard.json` and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Rate-limit errors are reported as errors and are not graded as agent failures.
+
 Checks: `npm run typecheck`, `npm run lint`, `npm test`. The tests use the AI SDK mock model and make no network calls.
 
 ## Roadmap

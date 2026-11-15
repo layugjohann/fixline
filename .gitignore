@@ -14,3 +14,6 @@ coverage/
 .sandcastle/worktrees/
 next-env.d.ts
 *.tsbuildinfo
+
+# eval runs (traces and scorecards)
+eval-runs/
