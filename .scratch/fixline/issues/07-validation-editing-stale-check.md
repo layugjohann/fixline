@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] Schema and referential validation reject invalid Proposals, and the reason appears in the trace
+- [ ] An attach operation targeting a closed Work Order is rejected before it is applied, including on the auto-apply path (today only the agent prompt forbids it; found in Issue 04's review)
 - [ ] A Coordinator can edit the Proposal's operations and labels before approving
 - [ ] A deterministic test shows a stale Proposal returning to review instead of being applied
 - [ ] Rejections are recorded and visible

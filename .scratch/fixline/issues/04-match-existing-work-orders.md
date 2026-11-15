@@ -4,17 +4,19 @@
 
 **Blocked by:** 03
 
-**Status:** awaiting-merge
+**Status:** done
 Pull Request: https://github.com/layugjohann/fixline/pull/4
 
-- [ ] The agent has read-only tools to search open Work Orders and get a single Work Order
-- [ ] The Proposal supports an attach-to-existing-Work-Order operation alongside create
-- [ ] The fake Board supports appending information to a Work Order and linking source Messages
-- [ ] A deterministic test covers an attach Proposal updating the correct Work Order
-- [ ] A match-target grader is added to the eval harness
-- [ ] Scenarios cover duplicates, follow-ups, and a similar-but-different problem that must NOT be matched
+- [x] The agent has read-only tools to search open Work Orders and get a single Work Order
+- [x] The Proposal supports an attach-to-existing-Work-Order operation alongside create
+- [x] The fake Board supports appending information to a Work Order and linking source Messages
+- [x] A deterministic test covers an attach Proposal updating the correct Work Order
+- [x] A match-target grader is added to the eval harness
+- [x] Scenarios cover duplicates, follow-ups, and a similar-but-different problem that must NOT be matched
 
 ## Comments
+
+- 2026-11-16: Follow-ups from the review's non-critical findings. `app/api/intake/route.ts` now returns 502 instead of an unhandled 500 when an attach targets a Work Order that isn't on the Board (the request's Board is discarded on error, so the browser's Board stays unchanged). Issue 07 gained an explicit criterion for rejecting attaches to closed Work Orders. The cross-Tenant routing finding stays with Issue 06 and the Board contract suite with Issue 14. Note: if Issue 14 (Trello) lands before Issue 07, an attach to a missing Work Order can leave a real Board half-written.
 
 Usage: Implementer 40 input, 19,813 output, 63,596 cache creation, 1,082,918 cache read; Review Session 14 input, 4,079 output, 42,983 cache creation, 304,186 cache read.
 
