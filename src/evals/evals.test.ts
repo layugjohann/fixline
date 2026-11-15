@@ -5,6 +5,7 @@ import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, describe, expect, it } from "vitest";
 import { TraceSchema, type Proposal } from "@/domain";
+import { propertyRoster } from "@/fixtures";
 import { goldenScenarios } from "./golden-scenarios";
 import { runEvals } from "./runner";
 import type { GoldenScenario } from "./scenario";
@@ -33,7 +34,7 @@ function perfectProposal(scenario: GoldenScenario): Proposal {
         ? { type: "attach", workOrderId: workOrder.workOrderId, information: "New information." }
         : {
             type: "create",
-            unitId: workOrder.unitId,
+            location: workOrder.location,
             title: "Problem",
             description: "Described problem.",
             trade: typeof workOrder.trade === "string" ? workOrder.trade : workOrder.trade[0]!,
@@ -97,6 +98,37 @@ describe("golden dataset", () => {
     // Each similar-but-different scenario has a lookalike Work Order on its Board to resist.
     expect(different.every((s) => s.board.length > 1)).toBe(true);
   });
+
+  it("covers multi-problem Messages and Common Areas, including a Common Area merge across Units", () => {
+    const tagged = (tag: string) => goldenScenarios.filter((s) => s.tags.includes(tag));
+    const counts = tagged("multi-problem").map((s) => s.expected.workOrders.length);
+    expect(counts).toContain(3);
+    expect(
+      tagged("multi-problem").some((s) => {
+        const types = new Set(s.expected.workOrders.map((w) => w.type));
+        return types.has("attach") && types.has("create");
+      }),
+    ).toBe(true);
+
+    const commonAreaIds = new Set(
+      propertyRoster.properties.flatMap((property) => property.commonAreas.map((commonArea) => commonArea.id)),
+    );
+    expect(commonAreaIds.size).toBeGreaterThan(0);
+    const commonAreaScenarios = tagged("common-area");
+    expect(
+      commonAreaScenarios.some((s) =>
+        s.expected.workOrders.some((w) => w.type === "create" && w.location.type === "common-area"),
+      ),
+    ).toBe(true);
+    // A Tenant from one Unit attaches to a Common Area Work Order raised from a different Unit.
+    const merge = scenario("common-area-merge-across-units");
+    const target = merge.expected.workOrders[0];
+    if (target?.type !== "attach") throw new Error("Expected an attach");
+    const workOrder = merge.board.find((w) => w.id === target.workOrderId)!;
+    expect(workOrder.location.type).toBe("common-area");
+    expect(workOrder.messageIds.some((id) => id !== merge.message.id)).toBe(true);
+    expect(merge.message.sender.email).not.toBe("luis.romero@example.com");
+  });
 });
 
 describe("eval runner", () => {
@@ -143,7 +175,7 @@ describe("eval runner", () => {
       detail: "expected not-maintenance, got maintenance",
     });
     expect(rentResult!.grades).toContainEqual({
-      dimension: "unit",
+      dimension: "count",
       status: "fail",
       detail: "expected 0 Work Orders, got 1 Work Order",
     });
@@ -161,7 +193,7 @@ describe("eval runner", () => {
       operations: [
         {
           type: "create",
-          unitId: "harbor-view-2a",
+          location: { type: "unit", unitId: "harbor-view-2a" },
           title: "Dripping tap",
           description: "Kitchen tap drips.",
           trade: "plumbing",
@@ -224,6 +256,58 @@ describe("eval runner", () => {
       true,
     );
     expect(traces[fridge.id]!.steps.some((step) => step.type === "tool-call")).toBe(true);
+  });
+
+  it("grades a multi-problem Proposal whatever order its operations come in", async () => {
+    const three = scenario("multi-problem-three-problems");
+    const twoProblems = scenario("multi-problem-attach-and-create");
+    const reversed = perfectProposal(three);
+    reversed.operations.reverse();
+
+    const { scorecard } = await runEvals([three, twoProblems], {
+      model: scriptedModel({
+        [three.message.id]: reversed,
+        [twoProblems.message.id]: { ...perfectProposal(twoProblems), operations: perfectProposal(twoProblems).operations.reverse() },
+      }),
+    });
+
+    expect(scorecard.totals).toMatchObject({ passed: 2, failed: 0 });
+    expect(scorecard.scenarios[0]!.grades).toContainEqual({ dimension: "count", status: "pass", detail: "3 Work Orders" });
+  });
+
+  it("grades the number of Work Orders and the location (Unit or Common Area) separately", async () => {
+    const twoProblems = scenario("multi-problem-attach-and-create");
+    const stairwell = scenario("common-area-new-report");
+    // Only the heater is picked up; the dripping tap is missed.
+    const missedTap: Proposal = {
+      ...perfectProposal(twoProblems),
+      operations: perfectProposal(twoProblems).operations.filter((operation) => operation.type === "attach"),
+    };
+    // The stairwell light is recorded against the Sender's Unit instead of the Common Area.
+    const inSendersUnit = perfectProposal(stairwell);
+    const stairwellOperation = inSendersUnit.operations[0]!;
+    if (stairwellOperation.type !== "create") throw new Error("Expected a create operation");
+    stairwellOperation.location = { type: "unit", unitId: "harbor-view-2a" };
+
+    const { scorecard } = await runEvals([twoProblems, stairwell], {
+      model: scriptedModel({ [twoProblems.message.id]: missedTap, [stairwell.message.id]: inSendersUnit }),
+    });
+
+    const [twoResult, stairwellResult] = scorecard.scenarios;
+    expect(twoResult!.grades.filter((g) => g.status === "fail")).toEqual([
+      { dimension: "count", status: "fail", detail: "expected 2 Work Orders, got 1 Work Order" },
+    ]);
+    expect(twoResult!.grades).toContainEqual({ dimension: "match", status: "pass", detail: "Work Order 1: WO-3" });
+    expect(stairwellResult!.grades.filter((g) => g.status === "fail")).toEqual([
+      {
+        dimension: "location",
+        status: "fail",
+        detail: "expected Common Area harbor-view-stairwell, got Unit harbor-view-2a",
+      },
+    ]);
+    expect(formatScorecard(scorecard)).toContain(
+      "common-area-new-report › location: expected Common Area harbor-view-stairwell, got Unit harbor-view-2a",
+    );
   });
 
   it("reports a rate limit as an error, not as an agent failure", async () => {

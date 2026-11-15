@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { z } from "zod";
-import { ProposalSchema, RoutingDecisionSchema, WorkOrderSchema, type WorkOrder } from "@/domain";
+import {
+  ProposalSchema,
+  RoutingDecisionSchema,
+  WorkOrderSchema,
+  locationId,
+  type WorkOrder,
+  type WorkOrderLocation,
+} from "@/domain";
 import { propertyRoster, tracerMessage } from "@/fixtures";
 
 const IntakeResponseSchema = z.object({
@@ -14,12 +21,17 @@ type IntakeResponse = z.infer<typeof IntakeResponseSchema>;
 
 const ErrorResponseSchema = z.object({ error: z.string() });
 
-function unitName(unitId: string): string {
+function locationName(location: WorkOrderLocation): string {
   for (const property of propertyRoster.properties) {
-    const unit = property.units.find((candidate) => candidate.id === unitId);
-    if (unit) return `${property.name}, Unit ${unit.label}`;
+    if (location.type === "unit") {
+      const unit = property.units.find((candidate) => candidate.id === location.unitId);
+      if (unit) return `${property.name}, Unit ${unit.label}`;
+    } else {
+      const commonArea = property.commonAreas.find((candidate) => candidate.id === location.commonAreaId);
+      if (commonArea) return `${property.name}, ${commonArea.name}`;
+    }
   }
-  return unitId;
+  return locationId(location);
 }
 
 export default function Home() {
@@ -87,7 +99,7 @@ export default function Home() {
               <strong>
                 {workOrder.id}: {workOrder.title}
               </strong>{" "}
-              ({workOrder.urgency}, {workOrder.trade}, {unitName(workOrder.unitId)})
+              ({workOrder.urgency}, {workOrder.trade}, {locationName(workOrder.location)})
               <br />
               {workOrder.description}
             </li>

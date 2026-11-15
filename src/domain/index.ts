@@ -15,11 +15,20 @@ export const UnitSchema = z.object({
 });
 export type Unit = z.infer<typeof UnitSchema>;
 
+/** A shared space in a Property that belongs to no single Unit, such as a lobby or laundry room. */
+export const CommonAreaSchema = z.object({
+  id: z.string(),
+  propertyId: z.string(),
+  name: z.string(),
+});
+export type CommonArea = z.infer<typeof CommonAreaSchema>;
+
 export const PropertySchema = z.object({
   id: z.string(),
   name: z.string(),
   address: z.string(),
   units: z.array(UnitSchema),
+  commonAreas: z.array(CommonAreaSchema),
 });
 export type Property = z.infer<typeof PropertySchema>;
 
@@ -75,10 +84,35 @@ export const TRADES = [
 export const TradeSchema = z.enum(TRADES);
 export type Trade = z.infer<typeof TradeSchema>;
 
-/** The structured record of one maintenance problem in one Unit. */
+/** Where a Work Order's problem is: one Unit, or one Common Area. */
+export const WorkOrderLocationSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("unit"),
+    unitId: z.string().describe("Id of the Unit where the problem is"),
+  }),
+  z.object({
+    type: z.literal("common-area"),
+    commonAreaId: z.string().describe("Id of the Common Area (lobby, laundry room...) where the problem is"),
+  }),
+]);
+export type WorkOrderLocation = z.infer<typeof WorkOrderLocationSchema>;
+
+/** Whether two locations are the same Unit or the same Common Area. */
+export function sameLocation(a: WorkOrderLocation, b: WorkOrderLocation): boolean {
+  return a.type === "unit"
+    ? b.type === "unit" && a.unitId === b.unitId
+    : b.type === "common-area" && a.commonAreaId === b.commonAreaId;
+}
+
+/** A location's id: the Unit id or the Common Area id. */
+export function locationId(location: WorkOrderLocation): string {
+  return location.type === "unit" ? location.unitId : location.commonAreaId;
+}
+
+/** The structured record of one maintenance problem in one Unit or Common Area. */
 export const WorkOrderSchema = z.object({
   id: z.string(),
-  unitId: z.string(),
+  location: WorkOrderLocationSchema,
   title: z.string(),
   description: z.string(),
   trade: TradeSchema,
@@ -103,7 +137,9 @@ export interface WorkOrderUpdate {
 
 export const CreateWorkOrderOperationSchema = z.object({
   type: z.literal("create"),
-  unitId: z.string().describe("Id of the Unit where the problem is"),
+  location: WorkOrderLocationSchema.describe(
+    "The Sender's Unit, or the Common Area when the problem is in a shared space such as the lobby",
+  ),
   title: z.string().describe("Short summary of the problem"),
   description: z.string().describe("Clear description a Coordinator can dispatch from"),
   trade: TradeSchema,
@@ -132,7 +168,9 @@ export type ProposalOperation = z.infer<typeof ProposalOperationSchema>;
  */
 export const ProposalSchema = z.object({
   classification: z.enum(["maintenance", "not-maintenance"]),
-  operations: z.array(ProposalOperationSchema),
+  operations: z
+    .array(ProposalOperationSchema)
+    .describe("One operation per distinct problem in the Message; empty if it isn't a maintenance matter"),
   reasoning: z.string().describe("Brief reasoning summary for the Coordinator"),
 });
 export type Proposal = z.infer<typeof ProposalSchema>;

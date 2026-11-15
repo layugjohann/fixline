@@ -1,6 +1,6 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
-import { FakeBoard } from "@/board";
+import { FakeBoard, WorkOrderNotFoundError } from "@/board";
 import type { Message, Proposal, WorkOrder } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { runIntake } from "@/intake";
@@ -41,7 +41,7 @@ const createProposal: Proposal = {
   operations: [
     {
       type: "create",
-      unitId: "harbor-view-2a",
+      location: { type: "unit", unitId: "harbor-view-2a" },
       title: "Dripping kitchen sink tap",
       description: "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
       trade: "plumbing",
@@ -66,7 +66,7 @@ describe("Intake", () => {
     expect(await board.listWorkOrders()).toEqual([
       {
         id: "WO-1",
-        unitId: "harbor-view-2a",
+        location: { type: "unit", unitId: "harbor-view-2a" },
         title: "Dripping kitchen sink tap",
         description: "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
         trade: "plumbing",
@@ -81,7 +81,7 @@ describe("Intake", () => {
     const board = new FakeBoard([
       {
         id: "WO-1",
-        unitId: "quay-court-101",
+        location: { type: "unit", unitId: "quay-court-101" },
         title: "Broken window latch",
         description: "Bedroom window latch won't close.",
         trade: "carpentry",
@@ -99,7 +99,11 @@ describe("Intake", () => {
 
     const workOrders = await board.listWorkOrders();
     expect(workOrders).toHaveLength(2);
-    expect(workOrders[1]).toMatchObject({ id: "WO-2", unitId: "harbor-view-2a", messageIds: ["msg-1"] });
+    expect(workOrders[1]).toMatchObject({
+      id: "WO-2",
+      location: { type: "unit", unitId: "harbor-view-2a" },
+      messageIds: ["msg-1"],
+    });
   });
 
   it("returns a serialisable trace that ends with the Proposal and routing decision", async () => {
@@ -119,7 +123,7 @@ describe("Intake", () => {
   describe("matching existing Work Orders", () => {
     const windowLatch: WorkOrder = {
       id: "WO-1",
-      unitId: "quay-court-101",
+      location: { type: "unit", unitId: "quay-court-101" },
       title: "Broken window latch",
       description: "Bedroom window latch won't close.",
       trade: "carpentry",
@@ -129,7 +133,7 @@ describe("Intake", () => {
     };
     const kitchenTap: WorkOrder = {
       id: "WO-2",
-      unitId: "harbor-view-2a",
+      location: { type: "unit", unitId: "harbor-view-2a" },
       title: "Dripping kitchen sink tap",
       description: "Kitchen sink tap drips constantly.",
       trade: "plumbing",
@@ -139,7 +143,7 @@ describe("Intake", () => {
     };
     const oldBoiler: WorkOrder = {
       id: "WO-3",
-      unitId: "harbor-view-2a",
+      location: { type: "unit", unitId: "harbor-view-2a" },
       title: "Boiler pressure low",
       description: "Boiler kept losing pressure.",
       trade: "hvac",
@@ -235,6 +239,141 @@ describe("Intake", () => {
       expect(outputs).toContainEqual([kitchenTap]);
       // The boiler Work Order is closed, so it is never offered as a match.
       expect(outputs).toContainEqual([]);
+    });
+  });
+
+  describe("multi-problem Messages and Common Areas", () => {
+    const luisHeating: WorkOrder = {
+      id: "WO-1",
+      location: { type: "unit", unitId: "harbor-view-3b" },
+      title: "Radiators not heating",
+      description: "None of the radiators get warm.",
+      trade: "hvac",
+      urgency: "urgent",
+      status: "open",
+      messageIds: ["msg-0"],
+    };
+    const luisMessage: Message = {
+      id: "msg-luis",
+      sender: { email: "luis.romero@example.com", name: "Luis Romero" },
+      receivedAt: "2026-11-16T08:00:00Z",
+      body: "The heater is dead again. Also the kitchen tap drips, and the lobby light downstairs is out.",
+    };
+    const threeOperations: Proposal = {
+      classification: "maintenance",
+      operations: [
+        { type: "attach", workOrderId: "WO-1", information: "Heating has failed again." },
+        {
+          type: "create",
+          location: { type: "unit", unitId: "harbor-view-3b" },
+          title: "Dripping kitchen tap",
+          description: "Kitchen tap drips.",
+          trade: "plumbing",
+          urgency: "routine",
+        },
+        {
+          type: "create",
+          location: { type: "common-area", commonAreaId: "harbor-view-lobby" },
+          title: "Lobby light out",
+          description: "The lobby light is out.",
+          trade: "electrical",
+          urgency: "routine",
+        },
+      ],
+      reasoning: "Three problems: the open heating Work Order, a new tap problem, and a lobby light.",
+    };
+    const luisTap: WorkOrder = {
+      id: "WO-2",
+      location: { type: "unit", unitId: "harbor-view-3b" },
+      title: "Dripping kitchen tap",
+      description: "Kitchen tap drips.",
+      trade: "plumbing",
+      urgency: "routine",
+      status: "open",
+      messageIds: ["msg-luis"],
+    };
+    const lobbyLight: WorkOrder = {
+      id: "WO-3",
+      location: { type: "common-area", commonAreaId: "harbor-view-lobby" },
+      title: "Lobby light out",
+      description: "The lobby light is out.",
+      trade: "electrical",
+      urgency: "routine",
+      status: "open",
+      messageIds: ["msg-luis"],
+    };
+
+    it("applies every operation of a multi-operation Proposal", async () => {
+      const board = new FakeBoard([luisHeating]);
+
+      const result = await runIntake(luisMessage, {
+        model: scriptedModel(luisMessage.sender.email, threeOperations),
+        board,
+        propertyRoster,
+      });
+
+      expect(result.proposal).toEqual(threeOperations);
+      expect(result.routing.outcome).toBe("auto-apply");
+      const updatedHeating = {
+        ...luisHeating,
+        description: "None of the radiators get warm.\n\nUpdate from Message msg-luis: Heating has failed again.",
+        messageIds: ["msg-0", "msg-luis"],
+      };
+      expect(result.updatedWorkOrders).toEqual([updatedHeating]);
+      expect(result.createdWorkOrders).toEqual([luisTap, lobbyLight]);
+      expect(await board.listWorkOrders()).toEqual([updatedHeating, luisTap, lobbyLight]);
+    });
+
+    it("merges a Common Area report from a different Unit into the same Work Order", async () => {
+      const board = new FakeBoard([luisHeating, luisTap, lobbyLight]);
+      const mayaMessage: Message = {
+        id: "msg-maya-lobby",
+        sender: { email: "maya.okafor@example.com", name: "Maya Okafor" },
+        receivedAt: "2026-11-16T19:00:00Z",
+        body: "The light in the lobby is out, it's pitch dark when you come in.",
+      };
+      const model = new MockLanguageModelV4({
+        doGenerate: [
+          toolCallTurn("call-1", "lookUpSender", { email: mayaMessage.sender.email }),
+          toolCallTurn("call-2", "searchOpenWorkOrders", { commonAreaId: "harbor-view-lobby" }),
+          toolCallTurn("call-3", "submitProposal", {
+            classification: "maintenance",
+            operations: [{ type: "attach", workOrderId: "WO-3", information: "Another Tenant reports it is pitch dark." }],
+            reasoning: "Same lobby light already reported from Unit 3B.",
+          }),
+        ],
+      });
+
+      const result = await runIntake(mayaMessage, { model, board, propertyRoster });
+
+      const search = result.trace.steps.find(
+        (step) => step.type === "tool-call" && step.toolName === "searchOpenWorkOrders",
+      );
+      expect(search).toMatchObject({ output: [lobbyLight] });
+      expect(result.createdWorkOrders).toEqual([]);
+      const workOrders = await board.listWorkOrders();
+      expect(workOrders).toHaveLength(3);
+      expect(workOrders[2]).toMatchObject({
+        id: "WO-3",
+        location: { type: "common-area", commonAreaId: "harbor-view-lobby" },
+        messageIds: ["msg-luis", "msg-maya-lobby"],
+      });
+    });
+
+    it("leaves the Board untouched when one operation of a multi-operation Proposal can't be applied", async () => {
+      const board = new FakeBoard([luisHeating]);
+      const proposal: Proposal = {
+        ...threeOperations,
+        operations: [
+          threeOperations.operations[1]!,
+          { type: "attach", workOrderId: "WO-99", information: "Not on the Board." },
+        ],
+      };
+
+      await expect(
+        runIntake(luisMessage, { model: scriptedModel(luisMessage.sender.email, proposal), board, propertyRoster }),
+      ).rejects.toBeInstanceOf(WorkOrderNotFoundError);
+      expect(await board.listWorkOrders()).toEqual([luisHeating]);
     });
   });
 });
