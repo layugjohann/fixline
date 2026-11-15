@@ -4,7 +4,8 @@
 
 **Blocked by:** 03
 
-**Status:** in-progress
+**Status:** awaiting-merge
+Pull Request: https://github.com/layugjohann/fixline/pull/4
 
 - [ ] The agent has read-only tools to search open Work Orders and get a single Work Order
 - [ ] The Proposal supports an attach-to-existing-Work-Order operation alongside create
@@ -27,3 +28,5 @@ Usage: Implementer 40 input, 19,813 output, 63,596 cache creation, 1,082,918 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-04-2026-11-15T16-06-09-476Z.log`).
 
 Usage: Body writer 2 input, 1,474 output, 31,163 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/4
