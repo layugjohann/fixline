@@ -11,7 +11,7 @@ It ships with about 10 scenarios covering simple creates, non-maintenance Messag
 
 **Blocked by:** 01
 
-**Status:** awaiting-merge
+**Status:** done
 Pull Request: https://github.com/layugjohann/fixline/pull/3
 
 - [x] The golden scenario format holds a starting Board, Property Roster, Message, and expected Proposal
