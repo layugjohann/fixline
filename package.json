@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "eval": "tsx src/evals/cli.ts"
+    "eval": "tsx src/evals/cli.ts",
+    "replay": "tsx src/replays/cli.ts",
+    "replay:samples": "tsx src/replays/record-samples.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.105",

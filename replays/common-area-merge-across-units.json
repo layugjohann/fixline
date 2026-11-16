@@ -1,0 +1,185 @@
+{
+  "id": "common-area-merge-across-units",
+  "title": "Laundry room leak reported from another Unit",
+  "description": "A Tenant in 2A reports the laundry room leak already raised from 3B: it attaches to the Common Area Work Order, and goes to review because a different Tenant raised it.",
+  "model": "scripted sample (mock model, no real model call)",
+  "message": {
+    "id": "msg-laundry-leak",
+    "sender": {
+      "email": "maya.okafor@example.com",
+      "name": "Maya Okafor"
+    },
+    "receivedAt": "2026-11-16T11:20:00Z",
+    "body": "The washing machine by the door in the laundry room is leaking all over the floor again when it spins. I nearly slipped. Someone should look at it."
+  },
+  "board": [
+    {
+      "id": "WO-1",
+      "location": {
+        "type": "unit",
+        "unitId": "quay-court-102"
+      },
+      "title": "Broken window latch",
+      "description": "Bedroom window latch won't close.",
+      "trade": "carpentry",
+      "urgency": "routine",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-1"
+      ]
+    },
+    {
+      "id": "WO-2",
+      "location": {
+        "type": "unit",
+        "unitId": "harbor-view-2a"
+      },
+      "title": "Dripping kitchen sink tap",
+      "description": "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
+      "trade": "plumbing",
+      "urgency": "urgent",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-2"
+      ],
+      "raisedByTenantId": "tenant-maya"
+    },
+    {
+      "id": "WO-5",
+      "location": {
+        "type": "common-area",
+        "commonAreaId": "harbor-view-laundry-room"
+      },
+      "title": "Washing machine leaking in laundry room",
+      "description": "The washing machine nearest the door leaks water across the laundry room floor during the spin cycle.",
+      "trade": "appliance",
+      "urgency": "urgent",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-5"
+      ],
+      "raisedByTenantId": "tenant-luis"
+    }
+  ],
+  "trace": {
+    "messageId": "msg-laundry-leak",
+    "steps": [
+      {
+        "type": "tool-call",
+        "toolName": "lookUpSender",
+        "input": {
+          "email": "maya.okafor@example.com"
+        },
+        "output": {
+          "found": true,
+          "tenant": {
+            "id": "tenant-maya",
+            "name": "Maya Okafor",
+            "email": "maya.okafor@example.com",
+            "phone": "+1 555 0101",
+            "unitId": "harbor-view-2a"
+          },
+          "unit": {
+            "id": "harbor-view-2a",
+            "propertyId": "harbor-view",
+            "label": "2A"
+          },
+          "property": {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "propertyId": "harbor-view",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "propertyId": "harbor-view",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "propertyId": "harbor-view",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "propertyId": "harbor-view",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "propertyId": "harbor-view",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "propertyId": "harbor-view",
+                "name": "Stairwell"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "model-turn",
+        "text": "Maya Okafor lives in 2A, but the problem is in the laundry room, a Common Area of Harbor View."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "searchOpenWorkOrders",
+        "input": {
+          "commonAreaId": "harbor-view-laundry-room"
+        },
+        "output": [
+          {
+            "id": "WO-5",
+            "location": {
+              "type": "common-area",
+              "commonAreaId": "harbor-view-laundry-room"
+            },
+            "title": "Washing machine leaking in laundry room",
+            "description": "The washing machine nearest the door leaks water across the laundry room floor during the spin cycle.",
+            "trade": "appliance",
+            "urgency": "urgent",
+            "status": "open",
+            "messageIds": [
+              "msg-seed-5"
+            ],
+            "raisedByTenantId": "tenant-luis"
+          }
+        ]
+      },
+      {
+        "type": "proposal",
+        "proposal": {
+          "classification": "maintenance",
+          "operations": [
+            {
+              "type": "attach",
+              "workOrderId": "WO-5",
+              "matchType": "cross-tenant",
+              "information": "A second Tenant (2A) reports the machine by the door leaks across the floor when it spins; the Tenant nearly slipped."
+            }
+          ],
+          "uncertain": false,
+          "reasoning": "Same washing machine leak as WO-5 in the laundry room Common Area, now reported from Unit 2A."
+        }
+      },
+      {
+        "type": "routing",
+        "decision": {
+          "outcome": "review",
+          "rules": [
+            "cross-tenant-match"
+          ],
+          "reason": "It matches a Work Order raised by a different Tenant."
+        }
+      }
+    ]
+  }
+}

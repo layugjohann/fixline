@@ -4,7 +4,7 @@
 
 > 🚧 Under construction. See the [roadmap](#roadmap).
 >
-> **Live tracer:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app). Press "Run Intake" to turn one hard-coded Message into a Work Order.
+> **Demo:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app) opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) runs the agent on one hard-coded Message.
 
 ## The engagement
 
@@ -33,7 +33,7 @@ The domain language is defined in [GLOSSARY.md](GLOSSARY.md).
 ```sh
 npm install
 cp .env.example .env.local   # then set GROQ_API_KEY (free tier)
-npm run dev                  # open http://localhost:3000 and press "Run Intake"
+npm run dev                  # replay mode at http://localhost:3000, live mode at /live
 ```
 
 ### Full setup and deploy
@@ -57,6 +57,28 @@ npm run eval -- --model claude:claude-sonnet-5-5
 ```
 
 Each run writes `scorecard.json` (which records the model) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.
+
+### Traces and replays
+
+Every Intake run returns a trace: an ordered list of steps (model turns, tool calls with their inputs and outputs, the final Proposal, the routing decision). Live runs, eval runs and replay all use this one format (`Trace` in `src/domain`).
+
+Replay mode, the landing page, shows the recorded runs in `replays/`. Each file is a replay: a trace plus the Message it was for, the Board it started from, and the model that produced it. The page reads them when it is built and serves them as static data, so it makes no model calls and needs no key.
+
+To turn any saved trace into a replay:
+
+```sh
+# A trace from an eval run: the Message and Board come from the golden scenario named by the
+# file, and the model from the run's scorecard.json.
+npm run replay -- eval-runs/<run>/traces/emergency-burst-pipe.json
+
+# A live run: save the JSON response of POST /api/intake (its `trace` field is used), plus
+# the Message you sent and, optionally, the Board you sent.
+npm run replay -- live-run.json --message message.json --board board.json --model groq --id my-run --title "My run"
+```
+
+Either writes `replays/<id>.json` (`--out <dir>` to write elsewhere, `--scenario <id>` to pick the golden scenario explicitly, `--title` and `--description` to label it). Commit the file and it appears in replay mode on the next build.
+
+The replays committed so far are samples recorded by `npm run replay:samples`, which runs Intake on golden scenarios with a scripted mock model; their model is labelled as scripted. Replace them with real runs as they are recorded.
 
 ### Models
 
