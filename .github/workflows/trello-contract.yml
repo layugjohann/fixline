@@ -1,0 +1,23 @@
+name: Trello Board contract
+
+# Runs the Board contract suite against Trello's dedicated test Board.
+# Only by hand (Actions → Trello Board contract → Run workflow, or `gh workflow run trello-contract.yml`):
+# it writes to a real Trello board. The secrets are set by `scripts/setup.sh trello`.
+on:
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:trello
+        env:
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_TEST_BOARD_ID: ${{ secrets.TRELLO_TEST_BOARD_ID }}

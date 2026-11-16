@@ -15,7 +15,9 @@
     "test": "vitest run",
     "eval": "tsx src/evals/cli.ts",
     "replay": "tsx src/replays/cli.ts",
-    "replay:samples": "tsx src/replays/record-samples.ts"
+    "replay:samples": "tsx src/replays/record-samples.ts",
+    "test:trello": "FIXLINE_TRELLO_CONTRACT=1 vitest run src/board/trello.contract.test.ts",
+    "intake": "tsx src/intake/cli.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.105",

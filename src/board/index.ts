@@ -25,6 +25,18 @@ export class WorkOrderNotFoundError extends Error {
 }
 
 /**
+ * A Work Order's description with an update's information appended, naming the
+ * Message it came from. Blank information leaves the description as it is.
+ * Every Board implementation records updates this way.
+ */
+export function appendInformation(description: string, update: WorkOrderUpdate): string {
+  const information = update.information.trim();
+  if (!information) return description;
+  const entry = `Update from Message ${update.messageId}: ${information}`;
+  return description ? `${description}\n\n${entry}` : entry;
+}
+
+/**
  * Wrap a Board so only its read methods are reachable. The agent gets this,
  * so it cannot write to the Board even by reaching past its type (ADR 0001).
  */
@@ -68,13 +80,19 @@ export class FakeBoard implements Board {
   async appendToWorkOrder(id: string, update: WorkOrderUpdate): Promise<WorkOrder> {
     const workOrder = this.workOrders.find((candidate) => candidate.id === id);
     if (!workOrder) throw new WorkOrderNotFoundError(id);
-    const information = update.information.trim();
-    if (information) {
-      const entry = `Update from Message ${update.messageId}: ${information}`;
-      workOrder.description = workOrder.description ? `${workOrder.description}\n\n${entry}` : entry;
-    }
+    workOrder.description = appendInformation(workOrder.description, update);
     if (!workOrder.messageIds.includes(update.messageId)) workOrder.messageIds.push(update.messageId);
     return structuredClone(workOrder);
+  }
+
+  /**
+   * Close a Work Order, as a Coordinator does on the Board once it's fixed.
+   * Not part of the Board interface: Intake never closes Work Orders.
+   */
+  async closeWorkOrder(id: string): Promise<void> {
+    const workOrder = this.workOrders.find((candidate) => candidate.id === id);
+    if (!workOrder) throw new WorkOrderNotFoundError(id);
+    workOrder.status = "closed";
   }
 
   /** The current Board state, safe to serialise and hand back to the browser. */
