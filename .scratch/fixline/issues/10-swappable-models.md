@@ -4,7 +4,8 @@
 
 **Blocked by:** 03
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/7
 
 - [ ] One provider-agnostic configuration selects Groq, Gemini, Claude or OpenAI
 - [ ] Rate-limit and quota errors are detected and surfaced distinctly from agent errors
@@ -26,3 +27,5 @@ Usage: Implementer 58 input, 24,180 output, 70,000 cache creation, 1,714,277 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-10-2026-11-16T07-53-08-128Z.log`).
 
 Usage: Body writer 2 input, 1,623 output, 34,458 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/7
