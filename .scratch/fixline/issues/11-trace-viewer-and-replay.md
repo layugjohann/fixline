@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/9
 
 - [ ] The trace viewer renders every step of a trace produced by Intake or the eval runner

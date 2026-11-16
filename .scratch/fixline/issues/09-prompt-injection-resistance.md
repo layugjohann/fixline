@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/6
 
 - [ ] Message content reaches the model clearly delimited as untrusted data

@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/7
 
 - [ ] One provider-agnostic configuration selects Groq, Gemini, Claude or OpenAI

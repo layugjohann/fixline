@@ -6,7 +6,7 @@
 
 **Blocked by:** 04
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/10
 
 - [ ] One Board contract suite runs against the fake Board in CI

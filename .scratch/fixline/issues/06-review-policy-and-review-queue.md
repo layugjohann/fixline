@@ -9,7 +9,7 @@ The page shows the Review Queue, where a Coordinator can approve or reject each 
 
 **Blocked by:** 04
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/8
 
 - [ ] The Proposal carries the categorical labels the policy reads (Urgency, match type, uncertain flag). There is no numeric confidence
