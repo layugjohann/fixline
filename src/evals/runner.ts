@@ -4,12 +4,15 @@ import type { LanguageModel } from "ai";
 import { FakeBoard } from "@/board";
 import type { Trace } from "@/domain";
 import { NoProposalError, runIntake } from "@/intake";
+import { ModelRateLimitError } from "@/models";
 import { failAll, gradeProposal, type Grade } from "./graders";
 import type { GoldenScenario } from "./scenario";
 import { buildScorecard, type Scorecard, type ScenarioResult } from "./scorecard";
 
 export interface EvalOptions {
   model: LanguageModel;
+  /** The name the model is recorded under on the scorecard, such as `groq:openai/gpt-oss-120b`. */
+  modelName?: string;
   /** Where the run's traces and scorecard are written. Nothing is written when omitted. */
   outputDir?: string;
   /** Called after each scenario, for progress output. */
@@ -27,14 +30,19 @@ export async function runEvals(scenarios: readonly GoldenScenario[], options: Ev
   const results: ScenarioResult[] = [];
   const traces: Record<string, Trace> = {};
 
+  let quotaExhausted: ModelRateLimitError | undefined;
   for (const scenario of scenarios) {
-    const { result, trace } = await runScenario(scenario, options.model);
+    // Once the provider says its quota is used up, the rest can't run either: don't spend more calls.
+    const { result, trace, rateLimit } = quotaExhausted
+      ? notRun(scenario, quotaExhausted)
+      : await runScenario(scenario, options.model);
+    if (rateLimit?.kind === "quota") quotaExhausted = rateLimit;
     results.push(result);
     traces[scenario.id] = trace;
     options.onScenario?.(result);
   }
 
-  const scorecard = buildScorecard({ model: describeModel(options.model), startedAt, results });
+  const scorecard = buildScorecard({ model: options.modelName ?? describeModel(options.model), startedAt, results });
 
   if (options.outputDir) {
     const traceDir = path.join(options.outputDir, "traces");
@@ -51,7 +59,7 @@ export async function runEvals(scenarios: readonly GoldenScenario[], options: Ev
 async function runScenario(
   scenario: GoldenScenario,
   model: LanguageModel,
-): Promise<{ result: ScenarioResult; trace: Trace }> {
+): Promise<ScenarioRun> {
   const base = { scenarioId: scenario.id, description: scenario.description, tags: scenario.tags };
   try {
     const intake = await runIntake(scenario.message, {
@@ -70,13 +78,38 @@ async function runScenario(
         trace: { messageId: scenario.message.id, steps: error.steps },
       };
     }
-    // Rate limits and other infrastructure errors are not agent failures, so they aren't graded.
+    // A rate limit or used-up quota means the scenario never ran: it is neither passed nor failed.
+    if (error instanceof ModelRateLimitError) return notRun(scenario, error);
+    // Other infrastructure errors are not agent failures either, so they aren't graded.
     const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     return {
       result: { ...base, status: "error", error: reason, grades: [] },
       trace: { messageId: scenario.message.id, steps: [] },
     };
   }
+}
+
+interface ScenarioRun {
+  result: ScenarioResult;
+  trace: Trace;
+  /** Set when the model provider's rate limit or quota stopped the scenario. */
+  rateLimit?: ModelRateLimitError;
+}
+
+function notRun(scenario: GoldenScenario, error: ModelRateLimitError): ScenarioRun {
+  return {
+    rateLimit: error,
+    result: {
+      scenarioId: scenario.id,
+      description: scenario.description,
+      tags: scenario.tags,
+      status: "not-run",
+      rateLimit: error.kind,
+      error: `${error.name}: ${error.message}`,
+      grades: [],
+    },
+    trace: { messageId: scenario.message.id, steps: [] },
+  };
 }
 
 function outcome(grades: Grade[]): { status: "pass" | "fail"; grades: Grade[] } {

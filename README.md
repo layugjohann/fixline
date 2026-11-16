@@ -46,15 +46,30 @@ npm run dev                  # open http://localhost:3000 and press "Run Intake"
 
 ### Evals
 
-The golden scenarios live in `src/evals/golden-scenarios.ts`. Each one has a starting Board, a Property Roster, a Message, and the expected Proposal. The runner sends each scenario through Intake against a fresh fake Board using the configured model (`GROQ_API_KEY` from `.env.local`). Rule-based graders score classification, number of Work Orders, match target, location (Unit or Common Area), Trade, Urgency and prompt-injection resistance (whether the Proposal did anything a Message's injected instructions demanded), and the runner prints a scorecard. Run only the injection scenarios with `npm run eval -- --tag prompt-injection`.
+The golden scenarios live in `src/evals/golden-scenarios.ts`. Each one has a starting Board, a Property Roster, a Message, and the expected Proposal. The runner sends each scenario through Intake against a fresh fake Board using the model chosen with `--model` (keys come from `.env.local`). Rule-based graders score classification, number of Work Orders, match target, location (Unit or Common Area), Trade, Urgency and prompt-injection resistance (whether the Proposal did anything a Message's injected instructions demanded), and the runner prints a scorecard. Run only the injection scenarios with `npm run eval -- --tag prompt-injection`.
 
 ```sh
 npm run eval                                   # all scenarios
 npm run eval -- --tag emergency                # filter by tag
 npm run eval -- --scenario emergency-burst-pipe --out eval-runs/pipe
+npm run eval -- --model gemini                 # another model: groq, gemini, claude, openai
+npm run eval -- --model claude:claude-sonnet-5-5
 ```
 
-Each run writes `scorecard.json` and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Rate-limit errors are reported as errors and are not graded as agent failures.
+Each run writes `scorecard.json` (which records the model) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.
+
+### Models
+
+Models are chosen by a spec, `<provider>[:<modelId>]` (see `src/models`), all through the Vercel AI SDK:
+
+| Provider | Key | Default model | Model override |
+| --- | --- | --- | --- |
+| `groq` (default, free tier) | `GROQ_API_KEY` | `openai/gpt-oss-120b` | `GROQ_MODEL` |
+| `gemini` (fallback, free tier) | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-flash-latest` | `GEMINI_MODEL` |
+| `claude` (your own key) | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` | `ANTHROPIC_MODEL` |
+| `openai` (your own key) | `OPENAI_API_KEY` | `gpt-5.5` | `OPENAI_MODEL` |
+
+Live runs use Groq, falling back to Gemini when Groq is rate-limited (if both keys are set). Set `FIXLINE_MODEL` to pin one model instead. The SDK retries rate-limited calls first; if the limit still holds, the API answers `429` with a clear message rather than a failed Proposal.
 
 Checks: `npm run typecheck`, `npm run lint`, `npm test`. The tests use the AI SDK mock model and make no network calls.
 

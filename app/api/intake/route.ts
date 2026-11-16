@@ -3,7 +3,7 @@ import { FakeBoard, WorkOrderNotFoundError } from "@/board";
 import { MessageSchema, WorkOrderSchema } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { ModelRateLimitError, NoProposalError, runIntake } from "@/intake";
-import { ModelNotConfiguredError, defaultModel } from "@/models";
+import { ModelNotConfiguredError, configuredModel } from "@/models";
 
 /**
  * Stateless: the browser sends its sandbox Board with each request, and gets
@@ -23,7 +23,7 @@ export async function POST(request: Request): Promise<Response> {
   const board = new FakeBoard(parsed.data.board);
   try {
     const result = await runIntake(parsed.data.message, {
-      model: defaultModel(),
+      model: configuredModel().model,
       board,
       propertyRoster,
     });
@@ -33,7 +33,13 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: error.message }, { status: 503 });
     }
     if (error instanceof ModelRateLimitError) {
-      return Response.json({ error: error.message }, { status: 429 });
+      return Response.json(
+        { error: error.message, rateLimit: error.kind },
+        {
+          status: 429,
+          headers: error.retryAfterSeconds === undefined ? undefined : { "Retry-After": String(error.retryAfterSeconds) },
+        },
+      );
     }
     if (error instanceof NoProposalError) {
       return Response.json({ error: error.message }, { status: 502 });

@@ -1,6 +1,4 @@
 import {
-  APICallError,
-  RetryError,
   generateText,
   hasToolCall,
   isStepCount,
@@ -16,6 +14,7 @@ import {
   type TraceStep,
 } from "@/domain";
 import type { BoardReader } from "@/board";
+import { toModelRateLimitError } from "@/models";
 import { lookUpSender } from "./property-roster";
 import { searchOpenWorkOrders } from "./work-order-search";
 
@@ -89,14 +88,6 @@ export class NoProposalError extends Error {
   }
 }
 
-/** The model provider refused the request because a rate limit was hit. */
-export class ModelRateLimitError extends Error {
-  constructor(options?: { cause?: unknown }) {
-    super("The model provider's rate limit was reached. Try again later.", options);
-    this.name = "ModelRateLimitError";
-  }
-}
-
 export async function runAgent(message: Message, deps: AgentDependencies): Promise<AgentRun> {
   const tools = {
     lookUpSender: tool({
@@ -151,8 +142,8 @@ export async function runAgent(message: Message, deps: AgentDependencies): Promi
       stopWhen: [hasToolCall(SUBMIT_PROPOSAL), isStepCount(MAX_STEPS)],
     });
   } catch (error) {
-    if (isRateLimit(error)) throw new ModelRateLimitError({ cause: error });
-    throw error;
+    // Rate limits and exhausted quotas are surfaced as their own error, never as a missing Proposal.
+    throw toModelRateLimitError(error) ?? error;
   }
 
   const steps: TraceStep[] = [];
@@ -197,7 +188,3 @@ function messageAsData(message: Message): string {
   return `<untrusted_message>\n${json}\n</untrusted_message>`;
 }
 
-function isRateLimit(error: unknown): boolean {
-  const cause = RetryError.isInstance(error) ? error.lastError : error;
-  return APICallError.isInstance(cause) && cause.statusCode === 429;
-}
