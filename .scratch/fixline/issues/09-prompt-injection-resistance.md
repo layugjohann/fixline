@@ -4,7 +4,8 @@
 
 **Blocked by:** 03
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/6
 
 - [ ] Message content reaches the model clearly delimited as untrusted data
 - [ ] At least 5 injection scenarios exist (Urgency manipulation, fake system text, instructions to match or create arbitrary Work Orders, and similar)
@@ -24,3 +25,5 @@ Usage: Implementer 28 input, 16,735 output, 67,867 cache creation, 787,946 cache
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-09-2026-11-16T07-46-28-932Z.log`).
 
 Usage: Body writer 2 input, 1,537 output, 26,124 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/6
