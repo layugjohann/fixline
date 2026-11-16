@@ -200,14 +200,112 @@ finish() {
 
 run_wizard() {
 
-TOTAL_STAGES=7
-
 # Run from the repo root so .env.local and .vercel/ land in the right place.
 cd "$(git rev-parse --show-toplevel)"
 ENV_FILE=".env.local"
 vercel() { npx --yes vercel@latest "$@"; }
 
-banner "Fixline setup: keys, Vercel, deploy"
+# trello_get PATH calls Trello's API with the key and token from this run. The
+# credentials go in a header read from stdin, so they never show up in `ps`.
+trello_get() {
+  printf 'Authorization: OAuth oauth_consumer_key="%s", oauth_token="%s"\n' "$TRELLO_API_KEY" "$TRELLO_TOKEN" |
+    curl -fsS -H @- "https://api.trello.com/1$1"
+}
+# json_field FIELD prints one top-level field of the JSON on stdin.
+json_field() {
+  node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s)[process.argv[1]]??""))' "$1"
+}
+# board_code URL_OR_ID prints the short code from a board URL (trello.com/b/<code>/...), or the id as given.
+board_code() {
+  if [[ "$1" =~ trello\.com/b/([A-Za-z0-9]+) ]]; then printf '%s' "${BASH_REMATCH[1]}"; else printf '%s' "$1"; fi
+}
+# ask_board KEY "Prompt" asks for a board URL, checks Trello can see it, and saves its code to KEY.
+ask_board() {
+  local key="$1" prompt="$2" code name
+  while true; do
+    ask "$key" "$prompt" || { warn "No board given."; exit 1; }
+    code=$(board_code "${!key}")
+    if name=$(trello_get "/boards/$code?fields=name" 2>/dev/null | json_field name) && [[ -n "$name" ]]; then
+      printf '  %s✓ found%s board "%s"\n' "$GREEN" "$RESET" "$name"
+      write_env "$key" "$code"
+      return
+    fi
+    warn "Trello couldn't find that board with this token. Check the URL and that you can open the board."
+  done
+}
+
+# The Trello stages: credentials, then the boards. Run on their own with: scripts/setup.sh trello
+trello_stages() {
+  # ── Trello A ─────────────────────────────────────────────────────────────
+  stage "Trello: API key and token"
+  say "Fixline talks to Trello with your own API key and a token that lets it read and write your boards."
+  note "Both are saved to $ENV_FILE (git-ignored) and never committed."
+  if [[ -z "$(_existing TRELLO_API_KEY || true)" ]]; then
+    open_url "https://trello.com/power-ups/admin"
+    step "Click 'New' to create a Power-Up: name it 'Fixline', pick your Workspace, fill in your email."
+    step "Leave the iframe connector URL empty, then click 'Create'."
+    step "Open the 'API key' tab, click 'Generate a new API key', then copy the API key (not the secret)."
+  else
+    note "You already have a key in $ENV_FILE. Press Enter to keep it."
+  fi
+  ask_secret TRELLO_API_KEY "Paste the Trello API key:"
+  [[ -n "$TRELLO_API_KEY" ]] || { warn "A Trello API key is required."; exit 1; }
+  if [[ -z "$(_existing TRELLO_TOKEN || true)" ]]; then
+    open_url "https://trello.com/1/authorize?expiration=never&scope=read,write&response_type=token&name=Fixline&key=$TRELLO_API_KEY"
+    step "Check it says Fixline wants read and write access, click 'Allow', then copy the token (starts ATTA)."
+  else
+    note "You already have a token in $ENV_FILE. Press Enter to keep it."
+  fi
+  ask_secret TRELLO_TOKEN "Paste the Trello token:"
+  [[ -n "$TRELLO_TOKEN" ]] || { warn "A Trello token is required."; exit 1; }
+  local username
+  if username=$(trello_get "/members/me?fields=username" 2>/dev/null | json_field username) && [[ -n "$username" ]]; then
+    printf '  %s✓ signed in%s as %s\n' "$GREEN" "$RESET" "$username"
+  else
+    warn "Trello rejected that key and token. Re-run the wizard and paste them again."
+    exit 1
+  fi
+  write_env TRELLO_API_KEY "$TRELLO_API_KEY"
+  write_env TRELLO_TOKEN "$TRELLO_TOKEN"
+  note "The manual 'Trello Board contract' GitHub workflow uses them too:"
+  set_secret TRELLO_API_KEY "$TRELLO_API_KEY"
+  set_secret TRELLO_TOKEN "$TRELLO_TOKEN"
+  pause
+
+  # ── Trello B ─────────────────────────────────────────────────────────────
+  stage "Trello: the Board and the test Board"
+  say "Fixline needs two Trello boards:"
+  step "Harbor Lane's Board, where 'npm run intake' puts Work Orders."
+  step "A separate, dedicated test Board. The contract tests create and delete Work Orders on it,"
+  note "  so never point it at a Board you care about."
+  open_url "https://trello.com"
+  step "Create a board named 'Harbor Lane Maintenance' (skip if you have one), then copy its URL from the address bar."
+  ask_board TRELLO_BOARD_ID "Paste the Harbor Lane Board's URL:"
+  step "Now create a second board named 'Fixline contract tests' and copy its URL."
+  while true; do
+    ask_board TRELLO_TEST_BOARD_ID "Paste the test Board's URL:"
+    [[ "$TRELLO_TEST_BOARD_ID" != "$TRELLO_BOARD_ID" ]] && break
+    warn "That's the Harbor Lane Board. The test Board must be a different, empty board."
+  done
+  set_secret TRELLO_TEST_BOARD_ID "$TRELLO_TEST_BOARD_ID"
+  say ""
+  say "Check it all works:"
+  step "npm run test:trello      runs the Board contract tests against the test Board"
+  step "npm run intake -- --from maya.okafor@example.com --body \"My kitchen tap is dripping\""
+  note "Fixline adds a 'Work Orders' list and Urgency, Trade and Unit labels to the board the first time it writes."
+  pause
+}
+
+if [[ "${1:-}" == "trello" ]]; then
+  TOTAL_STAGES=2
+  banner "Fixline setup: Trello"
+  trello_stages
+  finish
+  return
+fi
+
+TOTAL_STAGES=9
+banner "Fixline setup: keys, Vercel, deploy, Trello"
 
 # ── 1 ──────────────────────────────────────────────────────────────────────
 stage "Preflight"
@@ -328,6 +426,13 @@ else
   note "No deploy, so there's nothing to test."
 fi
 pause
+
+# ── 8-9 ────────────────────────────────────────────────────────────────────
+if confirm "Set up the Trello integration now? (optional, for running Fixline against a real Board)"; then
+  trello_stages
+else
+  SKIPPED+=("Trello: run 'scripts/setup.sh trello' when you want the real Board")
+fi
 
 finish
 [[ -n "$PROD_URL" ]] && say "Live URL: ${BOLD}${PROD_URL}${RESET}  (paste this back to Claude for the README)"
