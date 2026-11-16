@@ -1,0 +1,115 @@
+{
+  "id": "not-maintenance-rent-question",
+  "title": "A rent question, not maintenance",
+  "description": "A rent question is not a maintenance matter and creates no Work Order.",
+  "model": "scripted sample (mock model, no real model call)",
+  "message": {
+    "id": "msg-rent-question",
+    "sender": {
+      "email": "maya.okafor@example.com",
+      "name": "Maya Okafor"
+    },
+    "receivedAt": "2026-11-02T08:30:00Z",
+    "body": "Hi there, quick question: when is rent due this month, and can I pay by bank transfer instead of the portal? Thanks!"
+  },
+  "board": [
+    {
+      "id": "WO-1",
+      "location": {
+        "type": "unit",
+        "unitId": "quay-court-102"
+      },
+      "title": "Broken window latch",
+      "description": "Bedroom window latch won't close.",
+      "trade": "carpentry",
+      "urgency": "routine",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-1"
+      ]
+    }
+  ],
+  "trace": {
+    "messageId": "msg-rent-question",
+    "steps": [
+      {
+        "type": "tool-call",
+        "toolName": "lookUpSender",
+        "input": {
+          "email": "maya.okafor@example.com"
+        },
+        "output": {
+          "found": true,
+          "tenant": {
+            "id": "tenant-maya",
+            "name": "Maya Okafor",
+            "email": "maya.okafor@example.com",
+            "phone": "+1 555 0101",
+            "unitId": "harbor-view-2a"
+          },
+          "unit": {
+            "id": "harbor-view-2a",
+            "propertyId": "harbor-view",
+            "label": "2A"
+          },
+          "property": {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "propertyId": "harbor-view",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "propertyId": "harbor-view",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "propertyId": "harbor-view",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "propertyId": "harbor-view",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "propertyId": "harbor-view",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "propertyId": "harbor-view",
+                "name": "Stairwell"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "proposal",
+        "proposal": {
+          "classification": "not-maintenance",
+          "operations": [],
+          "uncertain": false,
+          "reasoning": "The Message asks about rent, not a maintenance problem, so no Work Order is proposed."
+        }
+      },
+      {
+        "type": "routing",
+        "decision": {
+          "outcome": "auto-apply",
+          "rules": [],
+          "reason": "Proposal makes no changes to the Board."
+        }
+      }
+    ]
+  }
+}

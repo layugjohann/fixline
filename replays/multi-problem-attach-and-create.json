@@ -1,0 +1,221 @@
+{
+  "id": "multi-problem-attach-and-create",
+  "title": "Heater dead again, plus a dripping tap",
+  "description": "One Message about the open heating Work Order and a new dripping tap: one attach plus one create.",
+  "model": "scripted sample (mock model, no real model call)",
+  "message": {
+    "id": "msg-heater-and-tap",
+    "sender": {
+      "email": "luis.romero@example.com",
+      "name": "Luis Romero"
+    },
+    "receivedAt": "2026-11-15T18:40:00Z",
+    "body": "The heater is dead AGAIN, the radiators are stone cold just like last week. Also, unrelated, the kitchen tap has started dripping a little. That one's not a big deal, whenever someone's around."
+  },
+  "board": [
+    {
+      "id": "WO-1",
+      "location": {
+        "type": "unit",
+        "unitId": "quay-court-102"
+      },
+      "title": "Broken window latch",
+      "description": "Bedroom window latch won't close.",
+      "trade": "carpentry",
+      "urgency": "routine",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-1"
+      ]
+    },
+    {
+      "id": "WO-3",
+      "location": {
+        "type": "unit",
+        "unitId": "harbor-view-3b"
+      },
+      "title": "Radiators not heating",
+      "description": "None of the radiators in the flat get warm; the boiler display shows no error.",
+      "trade": "hvac",
+      "urgency": "urgent",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-3"
+      ],
+      "raisedByTenantId": "tenant-luis"
+    }
+  ],
+  "trace": {
+    "messageId": "msg-heater-and-tap",
+    "steps": [
+      {
+        "type": "model-turn",
+        "text": "Looking up the Sender."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "lookUpSender",
+        "input": {
+          "email": "luis.romero@example.com"
+        },
+        "output": {
+          "found": true,
+          "tenant": {
+            "id": "tenant-luis",
+            "name": "Luis Romero",
+            "email": "luis.romero@example.com",
+            "unitId": "harbor-view-3b"
+          },
+          "unit": {
+            "id": "harbor-view-3b",
+            "propertyId": "harbor-view",
+            "label": "3B"
+          },
+          "property": {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "propertyId": "harbor-view",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "propertyId": "harbor-view",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "propertyId": "harbor-view",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "propertyId": "harbor-view",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "propertyId": "harbor-view",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "propertyId": "harbor-view",
+                "name": "Stairwell"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "model-turn",
+        "text": "Luis Romero, Harbor View 3B. Two problems: the heating (again) and a new kitchen tap drip. Searching for each."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "searchOpenWorkOrders",
+        "input": {
+          "unitId": "harbor-view-3b",
+          "query": "heating"
+        },
+        "output": [
+          {
+            "id": "WO-3",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-3b"
+            },
+            "title": "Radiators not heating",
+            "description": "None of the radiators in the flat get warm; the boiler display shows no error.",
+            "trade": "hvac",
+            "urgency": "urgent",
+            "status": "open",
+            "messageIds": [
+              "msg-seed-3"
+            ],
+            "raisedByTenantId": "tenant-luis"
+          }
+        ]
+      },
+      {
+        "type": "tool-call",
+        "toolName": "searchOpenWorkOrders",
+        "input": {
+          "unitId": "harbor-view-3b",
+          "query": "tap"
+        },
+        "output": []
+      },
+      {
+        "type": "model-turn",
+        "text": "WO-3 is the open heating Work Order. Reading it in full to confirm."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "getWorkOrder",
+        "input": {
+          "workOrderId": "WO-3"
+        },
+        "output": {
+          "found": true,
+          "workOrder": {
+            "id": "WO-3",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-3b"
+            },
+            "title": "Radiators not heating",
+            "description": "None of the radiators in the flat get warm; the boiler display shows no error.",
+            "trade": "hvac",
+            "urgency": "urgent",
+            "status": "open",
+            "messageIds": [
+              "msg-seed-3"
+            ],
+            "raisedByTenantId": "tenant-luis"
+          }
+        }
+      },
+      {
+        "type": "proposal",
+        "proposal": {
+          "classification": "maintenance",
+          "operations": [
+            {
+              "type": "attach",
+              "workOrderId": "WO-3",
+              "matchType": "same-tenant",
+              "information": "Tenant reports the radiators are stone cold again, as they were last week."
+            },
+            {
+              "type": "create",
+              "location": {
+                "type": "unit",
+                "unitId": "harbor-view-3b"
+              },
+              "title": "Kitchen tap dripping",
+              "description": "Kitchen tap has started dripping slightly. Tenant says it's not a big deal.",
+              "trade": "plumbing",
+              "urgency": "routine"
+            }
+          ],
+          "uncertain": false,
+          "reasoning": "The heating is the open Work Order WO-3, so the Message attaches to it; the dripping tap is new and routine."
+        }
+      },
+      {
+        "type": "routing",
+        "decision": {
+          "outcome": "auto-apply",
+          "rules": [],
+          "reason": "Clear new routine or urgent Work Order(s), or obvious same-Tenant matches."
+        }
+      }
+    ]
+  }
+}
