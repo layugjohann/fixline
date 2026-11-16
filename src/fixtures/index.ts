@@ -1,4 +1,14 @@
-import { MessageSchema, PropertyRosterSchema, type Message, type PropertyRoster } from "@/domain";
+import { z } from "zod";
+import {
+  MessageSchema,
+  PropertyRosterSchema,
+  ReviewQueueEntrySchema,
+  WorkOrderSchema,
+  type Message,
+  type PropertyRoster,
+  type ReviewQueueEntry,
+  type WorkOrder,
+} from "@/domain";
 
 /** Harbor Lane's Property Roster (synthetic data only). */
 export const propertyRoster: PropertyRoster = PropertyRosterSchema.parse({
@@ -111,4 +121,113 @@ export const exampleMessages: Message[] = [
       "bathroom sink and the floor is flooding, I can't stop it! Separately, and not urgent at all, the latch on " +
       "my bedroom window is loose.",
   }),
+];
+
+// --- Demo sandbox seed ---------------------------------------------------------
+
+/** The open Work Orders every demo sandbox's Board starts with. */
+export const sandboxBoard: WorkOrder[] = z.array(WorkOrderSchema).parse([
+  {
+    id: "WO-1",
+    location: { type: "unit", unitId: "harbor-view-1a" },
+    title: "Water stain spreading on bathroom ceiling",
+    description: "Brown water stain on the bathroom ceiling, getting bigger and dripping after showers upstairs.",
+    trade: "plumbing",
+    urgency: "urgent",
+    status: "open",
+    messageIds: ["msg-seed-sam-ceiling"],
+    raisedByTenantId: "tenant-sam",
+  },
+  {
+    id: "WO-2",
+    location: { type: "common-area", commonAreaId: "harbor-view-lobby" },
+    title: "Lobby ceiling light flickering",
+    description: "The main ceiling light in the lobby flickers on and off in the evenings.",
+    trade: "electrical",
+    urgency: "routine",
+    status: "open",
+    messageIds: ["msg-seed-luis-lobby"],
+    raisedByTenantId: "tenant-luis",
+  },
+  {
+    id: "WO-3",
+    location: { type: "unit", unitId: "quay-court-101" },
+    title: "No heating in living room",
+    description: "Living room radiator stays cold; the rest of the heating seems to work.",
+    trade: "hvac",
+    urgency: "urgent",
+    status: "open",
+    messageIds: ["msg-seed-priya-heating"],
+    raisedByTenantId: "tenant-priya",
+  },
+]);
+
+/** A Proposal already waiting for a Coordinator when a demo sandbox starts. */
+export const sandboxReviewQueue: ReviewQueueEntry[] = z.array(ReviewQueueEntrySchema).parse([
+  {
+    id: "RQ-1",
+    status: "pending",
+    message: {
+      id: "msg-seed-unknown-bike-store",
+      sender: { email: "jo.tremaine@example.net", name: "Jo Tremaine" },
+      receivedAt: "2026-11-14T18:40:00Z",
+      body:
+        "Hi, I've just moved into 102 at Quay Court. The lock on the bike store door doesn't catch any more, " +
+        "so anyone can walk in. Not the end of the world but thought you should know.",
+    },
+    proposal: {
+      classification: "maintenance",
+      operations: [
+        {
+          type: "create",
+          location: { type: "common-area", commonAreaId: "quay-court-bike-store" },
+          title: "Bike store door lock doesn't catch",
+          description: "The lock on the Quay Court bike store door no longer catches, so the door can't be secured.",
+          trade: "locksmith",
+          urgency: "routine",
+        },
+      ],
+      uncertain: false,
+      reasoning:
+        "The Sender says they live in Unit 102 but isn't in the Property Roster. The problem is in a Common Area, " +
+        "so the Work Order is for the bike store.",
+    },
+    routing: { outcome: "review", rules: ["unknown-sender"], reason: "The Sender isn't in the Property Roster." },
+  },
+]);
+
+/**
+ * The example Messages in every demo sandbox's inbox, waiting to be processed:
+ * the routing examples above plus Messages about the seeded Board's Work Orders.
+ */
+export const inboxMessages: Message[] = [
+  ...exampleMessages,
+  ...z.array(MessageSchema).parse([
+    {
+      id: "msg-inbox-cross-tenant-leak",
+      sender: { email: "maya.okafor@example.com", name: "Maya Okafor" },
+      receivedAt: "2026-11-16T07:45:00Z",
+      body:
+        "Morning, the seal around my shower tray has gone black and cracked, and Sam downstairs says water is " +
+        "coming through his bathroom ceiling. Could it be from mine?",
+    },
+    {
+      id: "msg-inbox-lobby-follow-up",
+      sender: { email: "sam.whitfield@example.com", name: "Sam Whitfield" },
+      receivedAt: "2026-11-16T19:20:00Z",
+      body: "The lobby light is flickering again tonight, it's like a strobe in there. Someone's going to trip.",
+    },
+    {
+      id: "msg-inbox-angry-heating",
+      sender: { email: "priya.nair@example.com", name: "Priya Nair" },
+      receivedAt: "2026-11-16T08:02:00Z",
+      body: "STILL no heating in the living room!! It's been a week and it's freezing. When is someone coming??",
+    },
+    {
+      id: "msg-inbox-rent-question",
+      sender: { email: "luis.romero@example.com", name: "Luis Romero" },
+      receivedAt: "2026-11-16T12:15:00Z",
+      body: "Hi, quick question: is rent due on the 1st or the 5th this month? Thanks, Luis",
+    },
+  ]),
 ];
