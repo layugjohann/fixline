@@ -6,7 +6,8 @@
 
 **Blocked by:** 04
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/10
 
 - [ ] One Board contract suite runs against the fake Board in CI
 - [ ] The same suite passes against Trello when triggered by hand
@@ -30,3 +31,5 @@ Usage: Implementer 42 input, 36,971 output, 81,581 cache creation, 1,369,477 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-14-2026-11-16T09-02-46-218Z.log`).
 
 Usage: Body writer 2 input, 1,384 output, 34,890 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/10
