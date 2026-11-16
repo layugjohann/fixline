@@ -4,7 +4,8 @@
 
 **Blocked by:** 03
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/9
 
 - [ ] The trace viewer renders every step of a trace produced by Intake or the eval runner
 - [ ] Replay mode loads recorded traces with no model calls and no key
@@ -26,3 +27,5 @@ Usage: Implementer 48 input, 23,082 output, 75,189 cache creation, 1,602,384 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-11-2026-11-16T08-53-48-885Z.log`).
 
 Usage: Body writer 2 input, 1,259 output, 42,452 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/9
