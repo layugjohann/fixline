@@ -120,6 +120,8 @@ export const WorkOrderSchema = z.object({
   status: z.enum(["open", "closed"]),
   /** The Message(s) this Work Order came from. */
   messageIds: z.array(z.string()),
+  /** The Tenant who raised it. Absent when it was raised by a Sender not in the Property Roster. */
+  raisedByTenantId: z.string().optional(),
 });
 export type WorkOrder = z.infer<typeof WorkOrderSchema>;
 
@@ -147,9 +149,17 @@ export const CreateWorkOrderOperationSchema = z.object({
 });
 export type CreateWorkOrderOperation = z.infer<typeof CreateWorkOrderOperationSchema>;
 
+/** Whether a match is to a Work Order raised by the Sender's own Tenant or by a different one. */
+export const MATCH_TYPES = ["same-tenant", "cross-tenant"] as const;
+export const MatchTypeSchema = z.enum(MATCH_TYPES);
+export type MatchType = z.infer<typeof MatchTypeSchema>;
+
 export const AttachToWorkOrderOperationSchema = z.object({
   type: z.literal("attach"),
   workOrderId: z.string().describe("Id of the open Work Order this Message is about"),
+  matchType: MatchTypeSchema.describe(
+    '"same-tenant" if the Work Order was raised by the Sender\'s own Tenant, "cross-tenant" if a different Tenant (or an unknown Sender) raised it',
+  ),
   information: z
     .string()
     .describe("The new information this Message adds to the Work Order, in a sentence or two"),
@@ -171,16 +181,69 @@ export const ProposalSchema = z.object({
   operations: z
     .array(ProposalOperationSchema)
     .describe("One operation per distinct problem in the Message; empty if it isn't a maintenance matter"),
+  uncertain: z
+    .boolean()
+    .describe(
+      "true if you are unsure about any part of this Proposal (what the problem is, where it is, whether it matches a Work Order, or its Urgency), so a Coordinator should check it",
+    ),
   reasoning: z.string().describe("Brief reasoning summary for the Coordinator"),
 });
 export type Proposal = z.infer<typeof ProposalSchema>;
 
-/** What the review policy decided to do with a Proposal. */
+// --- Review policy -----------------------------------------------------------
+
+/**
+ * The fixed rules of the review policy (ADR 0003) that can send a Proposal to
+ * the Review Queue or flag it to a Coordinator.
+ */
+export const REVIEW_RULES = ["emergency", "uncertain", "cross-tenant-match", "unknown-sender"] as const;
+export const ReviewRuleSchema = z.enum(REVIEW_RULES);
+export type ReviewRule = z.infer<typeof ReviewRuleSchema>;
+
+/**
+ * What the review policy decided to do with a Proposal:
+ * - auto-apply: applied to the Board without a Coordinator;
+ * - review: sent to the Review Queue, applied only if a Coordinator approves it;
+ * - apply-and-flag: an emergency, applied immediately and flagged to a Coordinator;
+ * - split: an emergency plus something that must go to review. Only the emergency
+ *   creates are applied and flagged; every other operation waits in the Review Queue.
+ */
+export const ROUTING_OUTCOMES = ["auto-apply", "review", "apply-and-flag", "split"] as const;
+export const RoutingOutcomeSchema = z.enum(ROUTING_OUTCOMES);
+export type RoutingOutcome = z.infer<typeof RoutingOutcomeSchema>;
+
 export const RoutingDecisionSchema = z.object({
-  outcome: z.literal("auto-apply"),
+  outcome: RoutingOutcomeSchema,
+  /** Every rule that triggered, so a Coordinator can see why. Empty for auto-apply. */
+  rules: z.array(ReviewRuleSchema),
   reason: z.string(),
 });
 export type RoutingDecision = z.infer<typeof RoutingDecisionSchema>;
+
+// --- Review Queue --------------------------------------------------------------
+
+/**
+ * - pending: waiting for a Coordinator to approve or reject it;
+ * - approved / rejected: a Coordinator decided;
+ * - flagged: an emergency already applied to the Board, waiting for a Coordinator to acknowledge it;
+ * - acknowledged: a Coordinator has seen the flagged emergency.
+ */
+export const REVIEW_QUEUE_ENTRY_STATUSES = ["pending", "approved", "rejected", "flagged", "acknowledged"] as const;
+export const ReviewQueueEntryStatusSchema = z.enum(REVIEW_QUEUE_ENTRY_STATUSES);
+export type ReviewQueueEntryStatus = z.infer<typeof ReviewQueueEntryStatusSchema>;
+
+/** One Proposal in the Review Queue, with the Message it answers and why it is there. */
+export const ReviewQueueEntrySchema = z.object({
+  id: z.string(),
+  message: MessageSchema,
+  proposal: ProposalSchema,
+  routing: RoutingDecisionSchema,
+  status: ReviewQueueEntryStatusSchema,
+});
+export type ReviewQueueEntry = z.infer<typeof ReviewQueueEntrySchema>;
+
+/** Fields needed to add a Proposal to the Review Queue. */
+export type NewReviewQueueEntry = Omit<ReviewQueueEntry, "id">;
 
 // --- Trace -----------------------------------------------------------------
 

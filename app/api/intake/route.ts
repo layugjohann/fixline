@@ -1,17 +1,19 @@
 import { z } from "zod";
 import { FakeBoard, WorkOrderNotFoundError } from "@/board";
-import { MessageSchema, WorkOrderSchema } from "@/domain";
+import { MessageSchema, ReviewQueueEntrySchema, WorkOrderSchema } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { ModelRateLimitError, NoProposalError, runIntake } from "@/intake";
 import { ModelNotConfiguredError, configuredModel } from "@/models";
+import { InMemoryReviewQueue } from "@/review-queue";
 
 /**
- * Stateless: the browser sends its sandbox Board with each request, and gets
- * the updated Board back. Nothing is kept on the server between requests.
+ * Stateless: the browser sends its sandbox Board and Review Queue with each
+ * request, and gets them back updated. Nothing is kept on the server between requests.
  */
 const IntakeRequestSchema = z.object({
   message: MessageSchema,
   board: z.array(WorkOrderSchema),
+  reviewQueue: z.array(ReviewQueueEntrySchema).default([]),
 });
 
 export async function POST(request: Request): Promise<Response> {
@@ -21,13 +23,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const board = new FakeBoard(parsed.data.board);
+  const reviewQueue = new InMemoryReviewQueue(parsed.data.reviewQueue);
   try {
     const result = await runIntake(parsed.data.message, {
       model: configuredModel().model,
       board,
       propertyRoster,
+      reviewQueue,
     });
-    return Response.json({ ...result, board: board.snapshot() });
+    return Response.json({ ...result, board: board.snapshot(), reviewQueue: reviewQueue.snapshot() });
   } catch (error) {
     if (error instanceof ModelNotConfiguredError) {
       return Response.json({ error: error.message }, { status: 503 });

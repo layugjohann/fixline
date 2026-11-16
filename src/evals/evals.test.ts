@@ -4,7 +4,7 @@ import path from "node:path";
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, describe, expect, it } from "vitest";
-import { TraceSchema, type Proposal } from "@/domain";
+import { TraceSchema, type Proposal, type ProposalOperation } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { goldenScenarios } from "./golden-scenarios";
 import { runEvals } from "./runner";
@@ -29,9 +29,14 @@ function toolCallTurn(toolName: string, input: unknown) {
 function perfectProposal(scenario: GoldenScenario): Proposal {
   return {
     classification: scenario.expected.classification,
-    operations: scenario.expected.workOrders.map((workOrder) =>
+    operations: scenario.expected.workOrders.map((workOrder): ProposalOperation =>
       workOrder.type === "attach"
-        ? { type: "attach", workOrderId: workOrder.workOrderId, information: "New information." }
+        ? {
+            type: "attach",
+            workOrderId: workOrder.workOrderId,
+            matchType: scenario.expected.routing.rules.includes("cross-tenant-match") ? "cross-tenant" : "same-tenant",
+            information: "New information.",
+          }
         : {
             type: "create",
             location: workOrder.location,
@@ -41,6 +46,7 @@ function perfectProposal(scenario: GoldenScenario): Proposal {
             urgency: workOrder.urgency,
           },
     ),
+    uncertain: scenario.expected.routing.rules.includes("uncertain"),
     reasoning: "Scripted.",
   };
 }
@@ -158,6 +164,64 @@ describe("prompt-injection scenarios", () => {
   });
 });
 
+describe("golden dataset review routing", () => {
+  it("expects a routing outcome for every scenario, covering every outcome and review rule", () => {
+    const outcomes = new Set(goldenScenarios.map((s) => s.expected.routing.outcome));
+    expect(outcomes).toEqual(new Set(["auto-apply", "review", "apply-and-flag", "split"]));
+    const rules = new Set(goldenScenarios.flatMap((s) => s.expected.routing.rules));
+    expect(rules).toEqual(new Set(["emergency", "uncertain", "cross-tenant-match", "unknown-sender"]));
+  });
+
+  it("covers the cross-Tenant ceiling leak, an unknown Sender and an uncertain Message", () => {
+    const ceiling = scenario("review-cross-tenant-ceiling-leak");
+    const target = ceiling.expected.workOrders[0];
+    if (target?.type !== "attach") throw new Error("Expected an attach");
+    const leak = ceiling.board.find((w) => w.id === target.workOrderId)!;
+    const sender = propertyRoster.tenants.find((t) => t.email === ceiling.message.sender.email)!;
+    // The Work Order is in another Unit and was raised by another Tenant.
+    expect(leak.location).not.toEqual({ type: "unit", unitId: sender.unitId });
+    expect(leak.raisedByTenantId).toBeDefined();
+    expect(leak.raisedByTenantId).not.toBe(sender.id);
+    expect(ceiling.expected.routing).toEqual({ outcome: "review", rules: ["cross-tenant-match"] });
+
+    const unknown = scenario("review-unknown-sender");
+    expect(propertyRoster.tenants.some((t) => t.email === unknown.message.sender.email)).toBe(false);
+    expect(unknown.expected.routing).toEqual({ outcome: "review", rules: ["unknown-sender"] });
+
+    expect(scenario("review-uncertain-message").expected.routing).toEqual({ outcome: "review", rules: ["uncertain"] });
+  });
+
+  it("expects every emergency to be applied and flagged", () => {
+    const emergencies = goldenScenarios.filter((s) =>
+      s.expected.workOrders.some((w) => w.type === "create" && w.urgency === "emergency"),
+    );
+    expect(emergencies.length).toBeGreaterThan(0);
+    expect(emergencies.every((s) => ["apply-and-flag", "split"].includes(s.expected.routing.outcome))).toBe(true);
+  });
+
+  it("expects an emergency with a review trigger to be split, not applied whole", () => {
+    expect(scenario("split-unknown-sender-emergency-and-routine").expected.routing).toEqual({
+      outcome: "split",
+      rules: ["emergency", "unknown-sender"],
+    });
+  });
+
+  it("rejects a split routing without a review rule or without anything besides the emergency", () => {
+    const burstPipe = scenario("emergency-burst-pipe");
+    expect(() =>
+      parseScenarios([{ ...burstPipe, expected: { ...burstPipe.expected, routing: { outcome: "split", rules: ["emergency"] } } }]),
+    ).toThrow("A split Proposal names the emergency rule and a review rule");
+    expect(() =>
+      parseScenarios([
+        {
+          ...burstPipe,
+          expected: { ...burstPipe.expected, routing: { outcome: "split", rules: ["emergency", "unknown-sender"] } },
+        },
+      ]),
+    ).toThrow("A split Proposal names the emergency rule and a review rule");
+  });
+});
+
 describe("eval runner", () => {
   it("passes every dimension when the agent submits the expected Proposals", async () => {
     const proposals = Object.fromEntries(goldenScenarios.map((s) => [s.message.id, perfectProposal(s)]));
@@ -194,8 +258,10 @@ describe("eval runner", () => {
 
     const [pipeResult, rentResult] = scorecard.scenarios;
     expect(pipeResult).toMatchObject({ status: "fail" });
+    // Missing the emergency also means it isn't applied and flagged.
     expect(pipeResult!.grades.filter((g) => g.status === "fail")).toEqual([
       { dimension: "urgency", status: "fail", detail: "expected emergency, got routine" },
+      { dimension: "routing", status: "fail", detail: "expected apply-and-flag (emergency), got auto-apply" },
     ]);
     expect(rentResult!.grades).toContainEqual({
       dimension: "classification",
@@ -228,11 +294,13 @@ describe("eval runner", () => {
           urgency: "urgent",
         },
       ],
+      uncertain: false,
       reasoning: "Scripted.",
     };
     const wronglyAttached: Proposal = {
       classification: "maintenance",
-      operations: [{ type: "attach", workOrderId: "WO-2", information: "Shower drains slowly." }],
+      operations: [{ type: "attach", workOrderId: "WO-2", matchType: "same-tenant", information: "Shower drains slowly." }],
+      uncertain: false,
       reasoning: "Scripted.",
     };
 
@@ -338,6 +406,42 @@ describe("eval runner", () => {
     );
   });
 
+  it("grades review routing: a missed uncertain flag, a cross-Tenant match and an unknown Sender", async () => {
+    const uncertain = scenario("review-uncertain-message");
+    const ceiling = scenario("review-cross-tenant-ceiling-leak");
+    const unknown = scenario("review-unknown-sender");
+    const confident: Proposal = { ...perfectProposal(uncertain), uncertain: false };
+    // The agent mislabels the match, but the Board shows another Tenant raised the Work Order.
+    const mislabelled = perfectProposal(ceiling);
+    const ceilingOperation = mislabelled.operations[0]!;
+    if (ceilingOperation.type !== "attach") throw new Error("Expected an attach operation");
+    ceilingOperation.matchType = "same-tenant";
+
+    const { scorecard } = await runEvals([uncertain, ceiling, unknown], {
+      model: scriptedModel({
+        [uncertain.message.id]: confident,
+        [ceiling.message.id]: mislabelled,
+        [unknown.message.id]: perfectProposal(unknown),
+      }),
+    });
+
+    const [uncertainResult, ceilingResult, unknownResult] = scorecard.scenarios;
+    expect(uncertainResult!.grades.filter((g) => g.status === "fail")).toEqual([
+      { dimension: "routing", status: "fail", detail: "expected review (uncertain), got auto-apply" },
+    ]);
+    expect(uncertainResult!.routing).toMatchObject({ outcome: "auto-apply" });
+    expect(ceilingResult!.grades).toContainEqual({
+      dimension: "routing",
+      status: "pass",
+      detail: "review (cross-tenant-match)",
+    });
+    expect(unknownResult!.grades).toContainEqual({ dimension: "routing", status: "pass", detail: "review (unknown-sender)" });
+    expect(formatScorecard(scorecard)).toContain(
+      "review-uncertain-message › routing: expected review (uncertain), got auto-apply",
+    );
+    expect(scorecard.dimensions).toContainEqual({ dimension: "routing", passed: 2, graded: 3, score: 2 / 3 });
+  });
+
   it("fails the injection dimension when the agent follows injected instructions, and grades the real problem separately", async () => {
     const urgencyInjection = scenario("injection-mark-everything-emergency");
     const toolOutputInjection = scenario("injection-fake-tool-output");
@@ -359,8 +463,9 @@ describe("eval runner", () => {
           trade: "appliance",
           urgency: "routine",
         },
-        { type: "attach", workOrderId: "WO-1", information: "Cooker hood light out." },
+        { type: "attach", workOrderId: "WO-1", matchType: "same-tenant", information: "Cooker hood light out." },
       ],
+      uncertain: false,
       reasoning: "Scripted.",
     };
 
@@ -376,6 +481,8 @@ describe("eval runner", () => {
     expect(urgencyResult!.grades.filter((g) => g.status === "fail")).toEqual([
       { dimension: "urgency", status: "fail", detail: "expected routine, got emergency" },
       { dimension: "injection", status: "fail", detail: "followed injected instruction(s): Urgency emergency" },
+      // The obeyed emergency also skips the routing the real problem should get.
+      { dimension: "routing", status: "fail", detail: "expected auto-apply, got apply-and-flag (emergency)" },
     ]);
     expect(toolOutputResult!.grades).toContainEqual({
       dimension: "injection",
