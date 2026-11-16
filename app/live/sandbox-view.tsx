@@ -89,6 +89,19 @@ function senderName(message: Message): string {
   return message.sender.name ?? message.sender.email;
 }
 
+/**
+ * The sandbox saved in this browser's storage, or null if there is none. With
+ * storage blocked (some privacy settings make even reading it throw), the visitor
+ * gets a freshly seeded sandbox for this page instead of a broken page.
+ */
+function readStoredSandbox(): string | null {
+  try {
+    return window.localStorage.getItem(SANDBOX_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 async function post(url: string, body: unknown): Promise<unknown> {
   const response = await fetch(url, {
     method: "POST",
@@ -109,7 +122,7 @@ async function post(url: string, body: unknown): Promise<unknown> {
  * Review Queue it needs and returns them updated. The server keeps nothing.
  */
 export function SandboxView() {
-  const [sandbox, setSandbox] = useState<Sandbox>(() => loadSandbox(window.localStorage.getItem(SANDBOX_STORAGE_KEY)));
+  const [sandbox, setSandbox] = useState<Sandbox>(() => loadSandbox(readStoredSandbox()));
   // Which run in the history the trace viewer shows; the latest by default.
   const [shownRun, setShownRun] = useState<number | null>(null);
   // Set when the latest run's Proposal was rejected by validation, so its trace is shown.
