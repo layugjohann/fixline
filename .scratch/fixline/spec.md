@@ -29,7 +29,7 @@ The agent never changes the Board itself. Fixed rules decide what happens to eac
 
 - clear-cut Proposals are applied automatically;
 - uncertain or risky ones go to the Review Queue for a Coordinator to approve, edit, or reject;
-- emergencies are applied immediately and flagged to a Coordinator.
+- emergencies are applied immediately and flagged to a Coordinator. If a Proposal also contains something that must go to review, only the emergency is applied; the rest of the Proposal waits in the Review Queue (ADR 0003).
 
 Every run records a trace that can be replayed step by step.
 
@@ -124,7 +124,7 @@ The public web demo gives every visitor a private sandbox, with its own Board an
 - **Intake module (the primary seam):** a single entry point takes a Message and its dependencies (model, Board, Property Roster, Review Queue). It returns the Proposal, the routing decision, and the trace, and it applies or enqueues the Proposal. Internally it has four parts:
   - **Agent:** a tool-using loop. Its tools are read-only: look up a Sender in the Property Roster, search open Work Orders, get a Work Order. It ends by submitting exactly one Proposal through a final structured-output tool (ADR 0001). It never has write tools.
   - **Proposal validation:** a schema check plus checks that every referenced Work Order, Unit, and Common Area exists. Invalid Proposals never reach the Board or the Review Queue.
-  - **Review policy:** fixed rules reading the agent's categorical labels (Urgency, match type, an explicit uncertain flag, whether the Sender is known, whether a match crosses Tenants, whether there are Draft Replies). It does not use numeric confidence (ADR 0003). It decides between auto-applying, sending to the Review Queue, and applying while flagging as an emergency.
+  - **Review policy:** fixed rules reading the agent's categorical labels (Urgency, match type, an explicit uncertain flag, whether the Sender is known, whether a match crosses Tenants, whether there are Draft Replies). It does not use numeric confidence (ADR 0003). It decides between auto-applying, sending to the Review Queue, and applying while flagging as an emergency. When a Proposal triggers both the emergency rule and a review rule, it is split: the emergency creates are applied and flagged, and every other operation goes to the Review Queue, so one Proposal can be partly applied (ADR 0003).
   - **Applier:** applies an approved Proposal to the Board. When it applies, it checks the Proposal against the current Board and sends it back to review on any conflict.
 - **Proposal shape:** one Proposal per Message. It contains a classification (maintenance or not), a list of operations (create a Work Order, or attach to an existing Work Order with new information), the labels the review policy reads, the Draft Replies, and the agent's brief reasoning summary for the Coordinator. The exact schema is expected to change once evals are running, and that is expected.
 - **Board interface:** list or search Work Orders, get one, create, and update with appended information. Two implementations:
