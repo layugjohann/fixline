@@ -77,6 +77,7 @@ const lobbyAttach: Proposal = {
     },
   ],
   uncertain: false,
+  draftReplies: [],
   reasoning: "Same lobby light as WO-2.",
 };
 
