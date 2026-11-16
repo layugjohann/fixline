@@ -40,6 +40,7 @@ const message: Message = {
 const proposal: Proposal = {
   classification: "maintenance",
   uncertain: false,
+  draftReplies: [],
   operations: [
     {
       type: "create",
@@ -109,6 +110,7 @@ describe("Replay mode", () => {
     const notMaintenance: Proposal = {
       classification: "not-maintenance",
       uncertain: false,
+      draftReplies: [],
       operations: [],
       reasoning: "Rent question.",
     };

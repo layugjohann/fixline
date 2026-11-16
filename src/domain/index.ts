@@ -173,6 +173,32 @@ export const ProposalOperationSchema = z.discriminatedUnion("type", [
 export type ProposalOperation = z.infer<typeof ProposalOperationSchema>;
 
 /**
+ * Why the agent drafted a reply to the Sender:
+ * - missing-unit: the Message doesn't say where the problem is, and the Property Roster can't tell;
+ * - unit-mismatch: the Unit the Sender names doesn't match their Property Roster entry;
+ * - emergency-confirmation: an emergency where the Tenant asks to hear back (is help coming,
+ *   what should they do meanwhile).
+ */
+export const DRAFT_REPLY_PURPOSES = ["missing-unit", "unit-mismatch", "emergency-confirmation"] as const;
+export const DraftReplyPurposeSchema = z.enum(DRAFT_REPLY_PURPOSES);
+export type DraftReplyPurpose = z.infer<typeof DraftReplyPurposeSchema>;
+
+/**
+ * A response to the Sender composed on the company's behalf. It always goes to
+ * the Sender of the Message, and is never sent without a Coordinator's approval.
+ */
+export const DraftReplySchema = z.object({
+  purpose: DraftReplyPurposeSchema.describe(
+    '"missing-unit" to ask where the problem is, "unit-mismatch" to ask the Sender to confirm their Unit, "emergency-confirmation" to answer a Tenant reporting an emergency who asks to hear back',
+  ),
+  body: z
+    .string()
+    .min(1)
+    .describe("The reply to the Sender, in plain, polite language, signed by Harbor Lane Property Management"),
+});
+export type DraftReply = z.infer<typeof DraftReplySchema>;
+
+/**
  * The complete set of changes the agent wants to make in response to one
  * Message. A Proposal changes nothing until it is applied.
  */
@@ -186,6 +212,10 @@ export const ProposalSchema = z.object({
     .describe(
       "true if you are unsure about any part of this Proposal (what the problem is, where it is, whether it matches a Work Order, or its Urgency), so a Coordinator should check it",
     ),
+  draftReplies: z
+    .array(DraftReplySchema)
+    .default([])
+    .describe("Replies to the Sender, if any are needed; usually none. Each one waits for a Coordinator's approval"),
   reasoning: z.string().describe("Brief reasoning summary for the Coordinator"),
 });
 export type Proposal = z.infer<typeof ProposalSchema>;
@@ -196,7 +226,7 @@ export type Proposal = z.infer<typeof ProposalSchema>;
  * The fixed rules of the review policy (ADR 0003) that can send a Proposal to
  * the Review Queue or flag it to a Coordinator.
  */
-export const REVIEW_RULES = ["emergency", "uncertain", "cross-tenant-match", "unknown-sender"] as const;
+export const REVIEW_RULES = ["emergency", "uncertain", "cross-tenant-match", "unknown-sender", "draft-reply"] as const;
 export const ReviewRuleSchema = z.enum(REVIEW_RULES);
 export type ReviewRule = z.infer<typeof ReviewRuleSchema>;
 
@@ -252,6 +282,11 @@ export const ReviewQueueEntrySchema = z.object({
   conflicts: z.array(z.string()).optional(),
   /** Why a Coordinator rejected the Proposal, if they said. */
   rejectionReason: z.string().optional(),
+  /**
+   * When a Coordinator approved the entry's Draft Replies, which marks them as sent. Nothing is
+   * actually sent to the Tenant. Absent while they wait for approval, or if there are none.
+   */
+  draftRepliesSentAt: z.string().optional(),
 });
 export type ReviewQueueEntry = z.infer<typeof ReviewQueueEntrySchema>;
 
@@ -260,7 +295,7 @@ export type NewReviewQueueEntry = Omit<ReviewQueueEntry, "id">;
 
 /** What a Coordinator's decision may change on a Review Queue entry. */
 export type ReviewQueueEntryChanges = Partial<
-  Pick<ReviewQueueEntry, "proposal" | "status" | "attachTargets" | "agentProposal" | "conflicts" | "rejectionReason">
+  Pick<ReviewQueueEntry, "proposal" | "status" | "attachTargets" | "agentProposal" | "conflicts" | "rejectionReason" | "draftRepliesSentAt">
 >;
 
 // --- Trace -----------------------------------------------------------------

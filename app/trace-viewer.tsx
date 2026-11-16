@@ -128,6 +128,12 @@ function ProposalStep({ proposal }: { proposal: Proposal }) {
           ))}
         </ul>
       )}
+      {proposal.draftReplies.map((reply, index) => (
+        <div key={index}>
+          Draft Reply ({reply.purpose}), waiting for a Coordinator&apos;s approval:
+          <blockquote style={{ whiteSpace: "pre-wrap" }}>{reply.body}</blockquote>
+        </div>
+      ))}
     </>
   );
 }

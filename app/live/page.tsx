@@ -9,6 +9,7 @@ import {
   RoutingDecisionSchema,
   TraceSchema,
   WorkOrderSchema,
+  type DraftReplyPurpose,
   type ProposalOperation,
   type ReviewQueueEntry,
   type ReviewRule,
@@ -58,6 +59,13 @@ const RULE_LABELS: Record<ReviewRule, string> = {
   uncertain: "Flagged uncertain",
   "cross-tenant-match": "Matches another Tenant's Work Order",
   "unknown-sender": "Sender not in the Property Roster",
+  "draft-reply": "Includes a Draft Reply",
+};
+
+const DRAFT_REPLY_PURPOSE_LABELS: Record<DraftReplyPurpose, string> = {
+  "missing-unit": "asks for the missing Unit",
+  "unit-mismatch": "asks the Sender to confirm their Unit",
+  "emergency-confirmation": "confirms an emergency",
 };
 
 function describeOperation(operation: ProposalOperation): string {
@@ -306,7 +314,7 @@ function ReviewQueueItem({
       <blockquote style={{ whiteSpace: "pre-wrap" }}>{entry.message.body}</blockquote>
       {entry.agentProposal && <p>Edited by a Coordinator.</p>}
       {entry.proposal.operations.length === 0 ? (
-        <p>Proposal: no changes ({entry.proposal.classification}).</p>
+        <p>Proposal: no changes to the Board ({entry.proposal.classification}).</p>
       ) : (
         <ul>
           {entry.proposal.operations.map((operation, index) => (
@@ -314,6 +322,21 @@ function ReviewQueueItem({
           ))}
         </ul>
       )}
+      {entry.proposal.draftReplies.map((reply, index) => (
+        <div key={index}>
+          <p>
+            Draft Reply to {entry.message.sender.email} ({DRAFT_REPLY_PURPOSE_LABELS[reply.purpose]}):{" "}
+            <strong>
+              {entry.draftRepliesSentAt
+                ? `marked as sent ${entry.draftRepliesSentAt} (sandbox only, nothing was actually sent)`
+                : entry.status === "rejected"
+                  ? "not sent"
+                  : "waiting for approval"}
+            </strong>
+          </p>
+          <blockquote style={{ whiteSpace: "pre-wrap" }}>{reply.body}</blockquote>
+        </div>
+      ))}
       <p>{entry.proposal.reasoning}</p>
       {entry.status === "rejected" && entry.rejectionReason && <p>Rejected: {entry.rejectionReason}</p>}
       {entry.status === "pending" && draft !== null && (
@@ -342,7 +365,7 @@ function ReviewQueueItem({
       {entry.status === "pending" && draft === null && (
         <>
           <button onClick={() => onDecide(entry.id, { decision: "approve" })} disabled={busy}>
-            Approve
+            {entry.proposal.draftReplies.length > 0 ? "Approve and mark Draft Replies as sent" : "Approve"}
           </button>{" "}
           <button onClick={() => setDraft(JSON.stringify(entry.proposal, null, 2))} disabled={busy}>
             Edit

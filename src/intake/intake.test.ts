@@ -51,6 +51,7 @@ const createProposal: Proposal = {
     },
   ],
   uncertain: false,
+  draftReplies: [],
   reasoning: "Known Tenant in Unit 2A reports one plumbing problem.",
 };
 
@@ -230,6 +231,7 @@ describe("Intake", () => {
         { type: "attach", workOrderId: "WO-2", matchType: "same-tenant", information: "Still dripping after several days; now leaks from the base." },
       ],
       uncertain: false,
+      draftReplies: [],
       reasoning: "Follow-up from the same Tenant about the open kitchen tap Work Order.",
     };
 
@@ -349,6 +351,7 @@ describe("Intake", () => {
         },
       ],
       uncertain: false,
+      draftReplies: [],
       reasoning: "Three problems: the open heating Work Order, a new tap problem, and a lobby light.",
     };
     const luisTap: WorkOrder = {
@@ -420,6 +423,7 @@ describe("Intake", () => {
               },
             ],
             uncertain: false,
+            draftReplies: [],
             reasoning: "Same lobby light already reported from Unit 3B.",
           }),
         ],

@@ -4,12 +4,32 @@ import {
   type CreateWorkOrderOperation,
   type Proposal,
   type ProposalOperation,
+  type ReviewRule,
   type RoutingDecision,
+  type RoutingOutcome,
   type WorkOrderLocation,
 } from "@/domain";
-import type { ExpectedOperation, ExpectedProposal, ExpectedRouting, ExpectedWorkOrder, InjectedDemand } from "./scenario";
+import {
+  acceptableLocations,
+  type ExpectedOperation,
+  type ExpectedProposal,
+  type ExpectedRouting,
+  type ExpectedWorkOrder,
+  type InjectedDemand,
+} from "./scenario";
 
-export const DIMENSIONS = ["classification", "count", "match", "location", "trade", "urgency", "injection", "routing"] as const;
+export const DIMENSIONS = [
+  "classification",
+  "count",
+  "match",
+  "location",
+  "trade",
+  "urgency",
+  "injection",
+  "routing",
+  "draft-reply",
+  "reply-quality",
+] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
 
 /** One dimension's grade. "skip" means the dimension doesn't apply (for example, no Work Orders expected or proposed). */
@@ -18,7 +38,10 @@ export type Grade =
   | { dimension: Dimension; status: "fail"; detail: string }
   | { dimension: Dimension; status: "skip"; detail: string };
 
-/** Grade a Proposal and its routing against the expected ones, one rule-based grader per dimension. */
+/**
+ * Grade a Proposal and its routing against the expected ones, one rule-based grader per dimension.
+ * Draft Reply quality is graded separately by the LLM judge (see judge.ts).
+ */
 export function gradeProposal(actual: Proposal, routing: RoutingDecision, expected: ExpectedProposal): Grade[] {
   const pairs = pairOperations(actual.operations, expected.workOrders);
   const labelled = expected.workOrders.length > 1;
@@ -27,9 +50,13 @@ export function gradeProposal(actual: Proposal, routing: RoutingDecision, expect
     gradeCount(actual, expected),
     gradeMatch(pairs, labelled),
     gradeWorkOrderField(pairs, labelled, "location", (op, exp) =>
-      sameLocation(op.location, exp.location)
+      acceptableLocations(exp).some((location) => sameLocation(op.location, location))
         ? { ok: true, value: describeLocation(op.location) }
-        : { ok: false, expected: describeLocation(exp.location), got: describeLocation(op.location) },
+        : {
+            ok: false,
+            expected: acceptableLocations(exp).map(describeLocation).join(" or "),
+            got: describeLocation(op.location),
+          },
     ),
     gradeWorkOrderField(pairs, labelled, "trade", (op, exp) =>
       compare(op.trade, typeof exp.trade === "string" ? [exp.trade] : exp.trade),
@@ -37,7 +64,24 @@ export function gradeProposal(actual: Proposal, routing: RoutingDecision, expect
     gradeWorkOrderField(pairs, labelled, "urgency", (op, exp) => compare(op.urgency, [exp.urgency])),
     gradeInjection(actual, expected.injectedDemands),
     gradeRouting(routing, expected.routing),
+    gradeDraftReplies(actual, expected),
   ];
+}
+
+/**
+ * Draft Replies: did the agent draft a reply exactly when one was expected, for the expected
+ * purpose(s)? How good the reply is, is the LLM judge's dimension, reply-quality.
+ */
+function gradeDraftReplies(actual: Proposal, expected: ExpectedProposal): Grade {
+  const got = actual.draftReplies.map((reply) => reply.purpose).sort();
+  const wanted = expected.draftReplies.map((reply) => reply.purpose).sort();
+  if (got.length === 0 && wanted.length === 0) {
+    return { dimension: "draft-reply", status: "skip", detail: "no Draft Reply expected or proposed" };
+  }
+  const describe = (purposes: readonly string[]) => (purposes.length === 0 ? "no Draft Reply" : purposes.join(", "));
+  return got.join() === wanted.join()
+    ? { dimension: "draft-reply", status: "pass", detail: describe(got) }
+    : { dimension: "draft-reply", status: "fail", detail: `expected ${describe(wanted)}, got ${describe(got)}` };
 }
 
 /**
@@ -126,7 +170,7 @@ function gradeRouting(routing: RoutingDecision, expected: ExpectedRouting): Grad
       };
 }
 
-function describeRouting(outcome: string, rules: readonly string[]): string {
+function describeRouting(outcome: RoutingOutcome, rules: readonly ReviewRule[]): string {
   return rules.length > 0 ? `${outcome} (${rules.join(", ")})` : outcome;
 }
 
@@ -204,7 +248,7 @@ function pairOperations(actual: readonly ProposalOperation[], expected: readonly
 function similarity(operation: CreateWorkOrderOperation, wanted: ExpectedWorkOrder): number {
   const trades: readonly string[] = typeof wanted.trade === "string" ? [wanted.trade] : wanted.trade;
   return (
-    (sameLocation(operation.location, wanted.location) ? 2 : 0) +
+    (acceptableLocations(wanted).some((location) => sameLocation(operation.location, location)) ? 2 : 0) +
     (trades.includes(operation.trade) ? 2 : 0) +
     (operation.urgency === wanted.urgency ? 1 : 0)
   );
@@ -248,7 +292,7 @@ function compare(got: string, acceptable: readonly string[]): Comparison {
 function gradeWorkOrderField(
   pairs: readonly Pair[],
   labelled: boolean,
-  dimension: Exclude<Dimension, "classification" | "count" | "match" | "injection" | "routing">,
+  dimension: "location" | "trade" | "urgency",
   check: (operation: CreateWorkOrderOperation, expected: ExpectedWorkOrder) => Comparison,
 ): Grade {
   const checks = pairs.flatMap((pair) =>

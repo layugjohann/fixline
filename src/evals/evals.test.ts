@@ -6,6 +6,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, describe, expect, it } from "vitest";
 import { TraceSchema, type Proposal, type ProposalOperation } from "@/domain";
 import { propertyRoster } from "@/fixtures";
+import { DRAFT_REPLY_RUBRIC } from "./draft-reply-rubric";
 import { goldenScenarios } from "./golden-scenarios";
 import { runEvals } from "./runner";
 import { parseScenarios, type GoldenScenario } from "./scenario";
@@ -47,6 +48,10 @@ function perfectProposal(scenario: GoldenScenario): Proposal {
           },
     ),
     uncertain: scenario.expected.routing.rules.includes("uncertain"),
+    draftReplies: scenario.expected.draftReplies.map((reply) => ({
+      purpose: reply.purpose,
+      body: "Hello, could you tell us a little more? Harbor Lane Property Management",
+    })),
     reasoning: "Scripted.",
   };
 }
@@ -68,6 +73,19 @@ function scriptedModel(proposals: Record<string, Proposal>) {
         : toolCallTurn("lookUpSender", { email: scenario.message.sender.email });
     },
   });
+}
+
+/** A mock LLM judge that gives every rubric criterion the same verdict, except those listed as failing. */
+function scriptedJudge(failing: Record<string, string> = {}) {
+  const verdict = Object.fromEntries(
+    DRAFT_REPLY_RUBRIC.map((criterion) => [
+      criterion.id,
+      criterion.id in failing
+        ? { pass: false, explanation: failing[criterion.id] }
+        : { pass: true, explanation: "Meets the criterion." },
+    ]),
+  );
+  return new MockLanguageModelV4({ doGenerate: async () => toolCallTurn("submitVerdict", verdict) });
 }
 
 function scenario(id: string): GoldenScenario {
@@ -169,7 +187,7 @@ describe("golden dataset review routing", () => {
     const outcomes = new Set(goldenScenarios.map((s) => s.expected.routing.outcome));
     expect(outcomes).toEqual(new Set(["auto-apply", "review", "apply-and-flag", "split"]));
     const rules = new Set(goldenScenarios.flatMap((s) => s.expected.routing.rules));
-    expect(rules).toEqual(new Set(["emergency", "uncertain", "cross-tenant-match", "unknown-sender"]));
+    expect(rules).toEqual(new Set(["emergency", "uncertain", "cross-tenant-match", "unknown-sender", "draft-reply"]));
   });
 
   it("covers the cross-Tenant ceiling leak, an unknown Sender and an uncertain Message", () => {
@@ -226,7 +244,7 @@ describe("eval runner", () => {
   it("passes every dimension when the agent submits the expected Proposals", async () => {
     const proposals = Object.fromEntries(goldenScenarios.map((s) => [s.message.id, perfectProposal(s)]));
 
-    const { scorecard } = await runEvals(goldenScenarios, { model: scriptedModel(proposals) });
+    const { scorecard } = await runEvals(goldenScenarios, { model: scriptedModel(proposals), judge: scriptedJudge() });
 
     expect(scorecard.totals).toEqual({
       scenarios: goldenScenarios.length,
@@ -295,12 +313,14 @@ describe("eval runner", () => {
         },
       ],
       uncertain: false,
+      draftReplies: [],
       reasoning: "Scripted.",
     };
     const wronglyAttached: Proposal = {
       classification: "maintenance",
       operations: [{ type: "attach", workOrderId: "WO-2", matchType: "same-tenant", information: "Shower drains slowly." }],
       uncertain: false,
+      draftReplies: [],
       reasoning: "Scripted.",
     };
 
@@ -490,6 +510,7 @@ describe("eval runner", () => {
         { type: "attach", workOrderId: "WO-1", matchType: "same-tenant", information: "Cooker hood light out." },
       ],
       uncertain: false,
+      draftReplies: [],
       reasoning: "Scripted.",
     };
 
@@ -554,8 +575,9 @@ describe("eval runner", () => {
     expect(scorecard.scenarios[0]!.error).toContain("ModelRateLimitError");
     expect(scorecard.scenarios[1]).toMatchObject({ status: "pass" });
     for (const dimension of scorecard.dimensions) {
-      // The bulb Message has no injected instructions, so its injection dimension is skipped.
-      const expected = dimension.dimension === "injection" ? { graded: 0, passed: 0 } : { graded: 1, passed: 1 };
+      // The bulb Message has no injected instructions and needs no Draft Reply, so those dimensions are skipped.
+      const skipped = ["injection", "draft-reply", "reply-quality"].includes(dimension.dimension);
+      const expected = skipped ? { graded: 0, passed: 0 } : { graded: 1, passed: 1 };
       expect(dimension).toMatchObject(expected);
     }
     const printed = formatScorecard(scorecard);
@@ -620,3 +642,174 @@ function providerError(statusCode: number, body: string, responseHeaders?: Recor
     isRetryable: false,
   });
 }
+
+describe("Draft Replies", () => {
+  it("covers a missing Unit, a Unit mismatch and a confirmation-worthy emergency, each routed to review", () => {
+    const purposes = (id: string) => scenario(id).expected.draftReplies.map((reply) => reply.purpose);
+    expect(purposes("draft-reply-missing-unit")).toEqual(["missing-unit"]);
+    expect(purposes("draft-reply-unit-mismatch")).toEqual(["unit-mismatch"]);
+    expect(purposes("draft-reply-emergency-confirmation")).toEqual(["emergency-confirmation"]);
+
+    // Missing Unit: an unknown Sender who doesn't say where they live.
+    const missing = scenario("draft-reply-missing-unit");
+    expect(propertyRoster.tenants.some((t) => t.email === missing.message.sender.email)).toBe(false);
+    expect(missing.expected.routing).toEqual({ outcome: "review", rules: ["unknown-sender", "draft-reply"] });
+
+    // Unit mismatch: a known Tenant naming a Unit that isn't theirs.
+    const mismatch = scenario("draft-reply-unit-mismatch");
+    const tenant = propertyRoster.tenants.find((t) => t.email === mismatch.message.sender.email)!;
+    const workOrder = mismatch.expected.workOrders[0];
+    if (workOrder?.type !== "create") throw new Error("Expected a create operation");
+    expect(workOrder.alsoAcceptedLocations).toEqual([{ type: "unit", unitId: "harbor-view-2a" }]);
+    expect(tenant.unitId).not.toBe("harbor-view-2a");
+    expect(mismatch.expected.routing).toEqual({ outcome: "review", rules: ["uncertain", "draft-reply"] });
+
+    // Emergency: on the Board at once, with the reply waiting for review.
+    expect(scenario("draft-reply-emergency-confirmation").expected.routing).toEqual({
+      outcome: "split",
+      rules: ["emergency", "draft-reply"],
+    });
+  });
+
+  it("expects no Draft Reply in any other scenario", () => {
+    const withReplies = goldenScenarios.filter((s) => s.expected.draftReplies.length > 0).map((s) => s.id);
+    expect(withReplies.sort()).toEqual(
+      ["draft-reply-emergency-confirmation", "draft-reply-missing-unit", "draft-reply-unit-mismatch"].sort(),
+    );
+  });
+
+  it("rejects a scenario whose routing disagrees with its expected Draft Replies", () => {
+    const missing = scenario("draft-reply-missing-unit");
+    expect(() =>
+      parseScenarios([{ ...missing, expected: { ...missing.expected, routing: { outcome: "review", rules: ["unknown-sender"] } } }]),
+    ).toThrow("The draft-reply rule triggers exactly when a Draft Reply is expected");
+  });
+
+  it("grades missing, unexpected and wrong-purpose Draft Replies", async () => {
+    const missing = scenario("draft-reply-missing-unit");
+    const bulb = scenario("routine-blown-bulb");
+    const mismatch = scenario("draft-reply-unit-mismatch");
+    const reply = { body: "Hello. Harbor Lane Property Management" };
+
+    const { scorecard } = await runEvals([missing, bulb, mismatch], {
+      model: scriptedModel({
+        [missing.message.id]: { ...perfectProposal(missing), draftReplies: [] },
+        [bulb.message.id]: { ...perfectProposal(bulb), draftReplies: [{ purpose: "unit-mismatch", ...reply }] },
+        [mismatch.message.id]: { ...perfectProposal(mismatch), draftReplies: [{ purpose: "missing-unit", ...reply }] },
+      }),
+      judge: scriptedJudge(),
+    });
+
+    const draftReplyGrade = (index: number) =>
+      scorecard.scenarios[index]!.grades.find((g) => g.dimension === "draft-reply");
+    expect(draftReplyGrade(0)).toEqual({
+      dimension: "draft-reply",
+      status: "fail",
+      detail: "expected missing-unit, got no Draft Reply",
+    });
+    expect(draftReplyGrade(1)).toEqual({
+      dimension: "draft-reply",
+      status: "fail",
+      detail: "expected no Draft Reply, got unit-mismatch",
+    });
+    expect(draftReplyGrade(2)).toEqual({
+      dimension: "draft-reply",
+      status: "fail",
+      detail: "expected unit-mismatch, got missing-unit",
+    });
+    // Only replies with an expected purpose are judged.
+    for (const result of scorecard.scenarios) {
+      expect(result.grades.find((g) => g.dimension === "reply-quality")).toMatchObject({ status: "skip" });
+    }
+  });
+
+  it("accepts any of the locations a Unit mismatch leaves open", async () => {
+    const mismatch = scenario("draft-reply-unit-mismatch");
+    const inNamedUnit = perfectProposal(mismatch);
+    const operation = inNamedUnit.operations[0]!;
+    if (operation.type !== "create") throw new Error("Expected a create operation");
+    operation.location = { type: "unit", unitId: "harbor-view-2a" };
+    const inOtherUnit = structuredClone(inNamedUnit);
+    const other = inOtherUnit.operations[0]!;
+    if (other.type !== "create") throw new Error("Expected a create operation");
+    other.location = { type: "unit", unitId: "harbor-view-1a" };
+
+    const { scorecard: named } = await runEvals([mismatch], { model: scriptedModel({ [mismatch.message.id]: inNamedUnit }) });
+    const { scorecard: wrong } = await runEvals([mismatch], { model: scriptedModel({ [mismatch.message.id]: inOtherUnit }) });
+
+    expect(named.scenarios[0]!.grades).toContainEqual({ dimension: "location", status: "pass", detail: "Unit harbor-view-2a" });
+    expect(wrong.scenarios[0]!.grades).toContainEqual({
+      dimension: "location",
+      status: "fail",
+      detail: "expected Unit harbor-view-3b or Unit harbor-view-2a, got Unit harbor-view-1a",
+    });
+  });
+});
+
+describe("LLM judge", () => {
+  const missing = scenario("draft-reply-missing-unit");
+  const proposals = { [missing.message.id]: perfectProposal(missing) };
+
+  it("passes reply quality when the judge passes every rubric criterion", async () => {
+    const { scorecard } = await runEvals([missing], {
+      model: scriptedModel(proposals),
+      judge: scriptedJudge(),
+      judgeName: "groq:judge-model",
+    });
+
+    expect(scorecard.judge).toBe("groq:judge-model");
+    expect(scorecard.scenarios[0]!.grades).toContainEqual({
+      dimension: "reply-quality",
+      status: "pass",
+      detail: `${DRAFT_REPLY_RUBRIC.length}/${DRAFT_REPLY_RUBRIC.length} rubric criteria`,
+    });
+    expect(formatScorecard(scorecard)).toContain("Draft Replies judged by groq:judge-model");
+  });
+
+  it("fails reply quality on any failed criterion, naming it and the judge's reason", async () => {
+    const { scorecard } = await runEvals([missing], {
+      model: scriptedModel(proposals),
+      judge: scriptedJudge({ "accurate-no-overpromising": "Promises a plumber tomorrow at 9am." }),
+    });
+
+    expect(scorecard.scenarios[0]).toMatchObject({ status: "fail" });
+    expect(scorecard.scenarios[0]!.grades).toContainEqual({
+      dimension: "reply-quality",
+      status: "fail",
+      detail: "failed accurate-no-overpromising (Promises a plumber tomorrow at 9am.)",
+    });
+    expect(formatScorecard(scorecard)).toContain(
+      "draft-reply-missing-unit › reply-quality: failed accurate-no-overpromising (Promises a plumber tomorrow at 9am.)",
+    );
+  });
+
+  it("gives the judge the rubric, the Draft Reply and the scenario's guidance", async () => {
+    const judge = scriptedJudge();
+
+    await runEvals([missing], { model: scriptedModel(proposals), judge });
+
+    const call = JSON.stringify(judge.doGenerateCalls[0]!.prompt);
+    expect(call).toContain("private-and-on-message");
+    expect(call).toContain(missing.expected.draftReplies[0]!.guidance);
+    expect(call).toContain(perfectProposal(missing).draftReplies[0]!.body);
+  });
+
+  it("skips reply quality without a judge model, or when the judge is rate-limited, rather than failing the agent", async () => {
+    const { scorecard: unjudged } = await runEvals([missing], { model: scriptedModel(proposals) });
+    const rateLimitedJudge = new MockLanguageModelV4({
+      doGenerate: async () => {
+        throw providerError(429, "Rate limit reached for requests per minute");
+      },
+    });
+    const { scorecard: limited } = await runEvals([missing], { model: scriptedModel(proposals), judge: rateLimitedJudge });
+
+    expect(unjudged.scenarios[0]).toMatchObject({ status: "pass" });
+    expect(unjudged.scenarios[0]!.grades).toContainEqual({ dimension: "reply-quality", status: "skip", detail: "no judge model" });
+    expect(formatScorecard(unjudged)).toContain("no Draft Reply judge");
+    expect(limited.scenarios[0]).toMatchObject({ status: "pass" });
+    expect(limited.scenarios[0]!.grades.find((g) => g.dimension === "reply-quality")).toMatchObject({
+      status: "skip",
+      detail: expect.stringContaining("judge not run"),
+    });
+  });
+});

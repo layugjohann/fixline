@@ -30,6 +30,8 @@ export interface DimensionScore {
 /** The machine-readable result of one eval run. */
 export interface Scorecard {
   model: string;
+  /** The LLM judge that graded Draft Reply quality, if any. */
+  judge?: string;
   startedAt: string;
   totals: { scenarios: number; passed: number; failed: number; errored: number; notRun: number };
   dimensions: DimensionScore[];
@@ -38,6 +40,7 @@ export interface Scorecard {
 
 export function buildScorecard(input: {
   model: string;
+  judge?: string;
   startedAt: string;
   results: ScenarioResult[];
 }): Scorecard {
@@ -50,6 +53,7 @@ export function buildScorecard(input: {
   });
   return {
     model: input.model,
+    ...(input.judge === undefined ? {} : { judge: input.judge }),
     startedAt: input.startedAt,
     totals: {
       scenarios: results.length,
@@ -69,7 +73,10 @@ const MARK = { pass: "✓", fail: "✗", skip: "–" } as const;
 export function formatScorecard(scorecard: Scorecard): string {
   const lines: string[] = [];
   const { totals } = scorecard;
-  lines.push(`Eval scorecard — model ${scorecard.model}`);
+  lines.push(
+    `Eval scorecard — model ${scorecard.model}` +
+      (scorecard.judge ? `, Draft Replies judged by ${scorecard.judge}` : ", no Draft Reply judge"),
+  );
   lines.push(
     `${totals.passed}/${totals.scenarios} scenarios passed` +
       (totals.failed ? `, ${totals.failed} failed` : "") +

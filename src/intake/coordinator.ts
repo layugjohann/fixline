@@ -49,9 +49,15 @@ export type ApprovalResult =
  * Proposal was queued, or it no longer passes Proposal validation, nothing is
  * applied. The entry goes back to review with the conflicts recorded and its
  * view of those Work Orders refreshed, so a Coordinator can look again, edit it,
- * then approve or reject it. Otherwise it is applied and marked approved.
+ * then approve or reject it. Otherwise it is applied and marked approved, and its
+ * Draft Replies, if any, are marked as sent at `now` (in the sandbox only: nothing
+ * is actually sent to the Tenant).
  */
-export async function approveProposal(entryId: string, deps: CoordinatorDependencies): Promise<ApprovalResult> {
+export async function approveProposal(
+  entryId: string,
+  deps: CoordinatorDependencies,
+  now: Date = new Date(),
+): Promise<ApprovalResult> {
   const entry = await entryWithStatus(entryId, "pending", "approved", deps.reviewQueue);
   const conflicts = await findConflicts(entry.proposal, deps, entry.attachTargets);
   if (conflicts.length > 0) {
@@ -72,7 +78,8 @@ export async function approveProposal(entryId: string, deps: CoordinatorDependen
     deps.board,
     sender.found ? sender.tenant.id : undefined,
   );
-  return { outcome: "applied", ...changes, entry: await deps.reviewQueue.setStatus(entryId, "approved") };
+  const sent = entry.proposal.draftReplies.length > 0 ? { draftRepliesSentAt: now.toISOString() } : {};
+  return { outcome: "applied", ...changes, entry: await deps.reviewQueue.update(entryId, { status: "approved", ...sent }) };
 }
 
 /**
