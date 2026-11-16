@@ -581,6 +581,7 @@ describe("Draft Replies", () => {
         proposal: emergency,
         routing: { outcome: "apply-and-flag", rules: ["emergency"], reason: expect.any(String) },
         status: "flagged",
+        attachTargets: [],
       },
       {
         id: "RQ-2",
@@ -588,6 +589,7 @@ describe("Draft Replies", () => {
         proposal: { ...emergency, operations: [], draftReplies: [confirmEmergency] },
         routing: { outcome: "review", rules: ["draft-reply"], reason: expect.any(String) },
         status: "pending",
+        attachTargets: [],
       },
     ]);
   });

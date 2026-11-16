@@ -381,6 +381,7 @@ describe("eval runner", () => {
       classification: "maintenance",
       operations: [{ type: "attach", workOrderId: "WO-4", matchType: "same-tenant", information: "Not cold again." }],
       uncertain: false,
+      draftReplies: [],
       reasoning: "Scripted.",
     };
 
