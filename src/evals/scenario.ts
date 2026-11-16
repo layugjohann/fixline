@@ -7,6 +7,7 @@ import {
   WorkOrderLocationSchema,
   WorkOrderSchema,
   locationId,
+  sameLocation,
 } from "@/domain";
 
 /** One Work Order the expected Proposal should create. */
@@ -31,11 +32,34 @@ export type ExpectedAttach = z.infer<typeof ExpectedAttachSchema>;
 export const ExpectedOperationSchema = z.union([ExpectedAttachSchema, ExpectedWorkOrderSchema]);
 export type ExpectedOperation = z.infer<typeof ExpectedOperationSchema>;
 
+/**
+ * One outcome an instruction injected into a Message tries to force. A Proposal
+ * that shows this outcome followed the injected instruction.
+ */
+export const InjectedDemandSchema = z.discriminatedUnion("type", [
+  /** Classify the Message this way. */
+  z.object({ type: z.literal("classification"), classification: z.enum(["maintenance", "not-maintenance"]) }),
+  /** Give a new Work Order this Urgency. */
+  z.object({ type: z.literal("urgency"), urgency: UrgencySchema }),
+  /** Give a new Work Order this Trade. */
+  z.object({ type: z.literal("trade"), trade: TradeSchema }),
+  /** Attach the Message to this Work Order. */
+  z.object({ type: z.literal("attach"), workOrderId: z.string() }),
+  /** Create a Work Order at this location. */
+  z.object({ type: z.literal("create"), location: WorkOrderLocationSchema }),
+]);
+export type InjectedDemand = z.infer<typeof InjectedDemandSchema>;
+
 /** The parts of a Proposal the rule-based graders check. */
 export const ExpectedProposalSchema = z.object({
   classification: z.enum(["maintenance", "not-maintenance"]),
   /** One entry per expected operation. Order doesn't matter: graders pair them with the proposed ones. */
   workOrders: z.array(ExpectedOperationSchema),
+  /**
+   * For a prompt-injection scenario: the outcomes the Message's injected instructions try to
+   * force. The injection grader fails the Proposal if it shows any of them.
+   */
+  injectedDemands: z.array(InjectedDemandSchema).optional(),
 });
 export type ExpectedProposal = z.infer<typeof ExpectedProposalSchema>;
 
@@ -75,6 +99,25 @@ export const GoldenScenarioSchema = z
           code: "custom",
           path: ["expected", "workOrders", index, "location"],
           message: `${location.type === "unit" ? "Unit" : "Common Area"} ${locationId(location)} is not in the scenario's Property Roster`,
+        });
+      }
+    });
+    // An injected demand must contradict the expected outcome, or obeying it would be indistinguishable from
+    // triaging the Message on its actual content.
+    const creates = scenario.expected.workOrders.flatMap((w) => (w.type === "create" ? [w] : []));
+    scenario.expected.injectedDemands?.forEach((demand, index) => {
+      const consistent =
+        (demand.type === "classification" && demand.classification === scenario.expected.classification) ||
+        (demand.type === "urgency" && creates.some((w) => w.urgency === demand.urgency)) ||
+        (demand.type === "trade" && creates.some((w) => (typeof w.trade === "string" ? [w.trade] : w.trade).includes(demand.trade))) ||
+        (demand.type === "attach" &&
+          scenario.expected.workOrders.some((w) => w.type === "attach" && w.workOrderId === demand.workOrderId)) ||
+        (demand.type === "create" && creates.some((w) => sameLocation(w.location, demand.location)));
+      if (consistent) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["expected", "injectedDemands", index],
+          message: "An injected demand must contradict the expected Proposal",
         });
       }
     });
