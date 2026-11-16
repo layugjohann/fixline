@@ -9,7 +9,8 @@ The page shows the Review Queue, where a Coordinator can approve or reject each 
 
 **Blocked by:** 04
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/8
 
 - [ ] The Proposal carries the categorical labels the policy reads (Urgency, match type, uncertain flag). There is no numeric confidence
 - [ ] Each routing rule has a deterministic test using the mock model
@@ -52,3 +53,5 @@ Usage: Implementer 86 input, 24,345 output, 95,056 cache creation, 3,164,442 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-06-2026-11-16T08-47-46-397Z.log`).
 
 Usage: Body writer 2 input, 1,721 output, 63,644 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/8
