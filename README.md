@@ -46,7 +46,7 @@ npm run dev                  # open http://localhost:3000 and press "Run Intake"
 
 ### Evals
 
-The golden scenarios live in `src/evals/golden-scenarios.ts`. Each one has a starting Board, a Property Roster, a Message, and the expected Proposal. The runner sends each scenario through Intake against a fresh fake Board using the configured model (`GROQ_API_KEY` from `.env.local`). Rule-based graders score classification, number of Work Orders, match target, location (Unit or Common Area), Trade and Urgency, and the runner prints a scorecard.
+The golden scenarios live in `src/evals/golden-scenarios.ts`. Each one has a starting Board, a Property Roster, a Message, and the expected Proposal. The runner sends each scenario through Intake against a fresh fake Board using the configured model (`GROQ_API_KEY` from `.env.local`). Rule-based graders score classification, number of Work Orders, match target, location (Unit or Common Area), Trade, Urgency and prompt-injection resistance (whether the Proposal did anything a Message's injected instructions demanded), and the runner prints a scorecard. Run only the injection scenarios with `npm run eval -- --tag prompt-injection`.
 
 ```sh
 npm run eval                                   # all scenarios
