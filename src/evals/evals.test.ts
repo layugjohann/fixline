@@ -354,6 +354,30 @@ describe("eval runner", () => {
     expect(traces[fridge.id]!.steps.some((step) => step.type === "tool-call")).toBe(true);
   });
 
+  it("grades a Proposal that fails validation as a failure on every dimension, keeping the rejection in its trace", async () => {
+    const recurs = scenario("no-match-closed-work-order-recurs");
+    // Attaching to the closed fridge Work Order (WO-4) instead of creating a new one.
+    const attachToClosed: Proposal = {
+      classification: "maintenance",
+      operations: [{ type: "attach", workOrderId: "WO-4", matchType: "same-tenant", information: "Not cold again." }],
+      uncertain: false,
+      reasoning: "Scripted.",
+    };
+
+    const { scorecard, traces } = await runEvals([recurs], {
+      model: scriptedModel({ [recurs.message.id]: attachToClosed }),
+    });
+
+    expect(scorecard.totals).toMatchObject({ passed: 0, failed: 1, errored: 0 });
+    expect(
+      scorecard.scenarios[0]!.grades.every((g) => g.status === "fail" && g.detail.startsWith("invalid Proposal")),
+    ).toBe(true);
+    expect(traces[recurs.id]!.steps.at(-1)).toEqual({
+      type: "rejection",
+      problems: ["Operation 1 attaches to Work Order WO-4, which is closed."],
+    });
+  });
+
   it("grades a multi-problem Proposal whatever order its operations come in", async () => {
     const three = scenario("multi-problem-three-problems");
     const twoProblems = scenario("multi-problem-attach-and-create");

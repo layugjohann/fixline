@@ -1,4 +1,4 @@
-import type { NewReviewQueueEntry, ReviewQueueEntry, ReviewQueueEntryStatus } from "@/domain";
+import type { NewReviewQueueEntry, ReviewQueueEntry, ReviewQueueEntryChanges, ReviewQueueEntryStatus } from "@/domain";
 
 /** Where Proposals wait for a Coordinator to approve or reject them. */
 export interface ReviewQueue {
@@ -7,6 +7,8 @@ export interface ReviewQueue {
   get(id: string): Promise<ReviewQueueEntry | undefined>;
   /** Record a Coordinator's decision. Rejects if the entry doesn't exist. */
   setStatus(id: string, status: ReviewQueueEntryStatus): Promise<ReviewQueueEntry>;
+  /** Record a Coordinator's edit or decision. Rejects if the entry doesn't exist. */
+  update(id: string, changes: ReviewQueueEntryChanges): Promise<ReviewQueueEntry>;
 }
 
 /** No entry with this id is in the Review Queue. */
@@ -44,9 +46,13 @@ export class InMemoryReviewQueue implements ReviewQueue {
   }
 
   async setStatus(id: string, status: ReviewQueueEntryStatus): Promise<ReviewQueueEntry> {
+    return this.update(id, { status });
+  }
+
+  async update(id: string, changes: ReviewQueueEntryChanges): Promise<ReviewQueueEntry> {
     const entry = this.entries.find((candidate) => candidate.id === id);
     if (!entry) throw new ReviewQueueEntryNotFoundError(id);
-    entry.status = status;
+    Object.assign(entry, structuredClone(changes));
     return structuredClone(entry);
   }
 

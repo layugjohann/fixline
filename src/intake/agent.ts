@@ -6,13 +6,7 @@ import {
   type LanguageModel,
 } from "ai";
 import { z } from "zod";
-import {
-  ProposalSchema,
-  type Message,
-  type Proposal,
-  type PropertyRoster,
-  type TraceStep,
-} from "@/domain";
+import { ProposalSchema, type Message, type PropertyRoster, type TraceStep } from "@/domain";
 import type { BoardReader } from "@/board";
 import { toModelRateLimitError } from "@/models";
 import { lookUpSender } from "./property-roster";
@@ -71,7 +65,8 @@ You cannot change the Board. Your only output is the Proposal.`;
 
 /** What the agent produces for one Message. */
 export interface AgentRun {
-  proposal: Proposal;
+  /** The Proposal exactly as the agent submitted it, not yet validated (see Proposal validation). */
+  submitted: unknown;
   steps: TraceStep[];
 }
 
@@ -168,16 +163,10 @@ export async function runAgent(message: Message, deps: AgentDependencies): Promi
     }
   }
 
-  const parsed = ProposalSchema.safeParse(submitted);
-  if (!parsed.success) {
-    throw new NoProposalError(
-      submitted === undefined
-        ? "The agent finished without submitting a Proposal."
-        : `The agent submitted an invalid Proposal: ${parsed.error.message}`,
-      steps,
-    );
+  if (submitted === undefined) {
+    throw new NoProposalError("The agent finished without submitting a Proposal.", steps);
   }
-  return { proposal: parsed.data, steps };
+  return { submitted, steps };
 }
 
 /**
