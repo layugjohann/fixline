@@ -12,6 +12,8 @@
  * fallback (see src/models). Free-tier models must only ever see synthetic data (ADR 0002).
  *
  * Prints the Proposal, the routing decision and the Work Orders it created or updated.
+ * The Review Queue is in-memory and lasts only for this run, so anything sent to review is
+ * printed and then discarded.
  * With --trace, prints the full trace as JSON as well.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -21,6 +23,7 @@ import { trelloBoardFromEnv } from "@/board/trello";
 import { MessageSchema, locationId, type Message, type WorkOrder } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { configuredModel, createModel, parseModelSpec } from "@/models";
+import { InMemoryReviewQueue } from "@/review-queue";
 import { runIntake } from "./index";
 
 const USAGE = `Usage: npm run intake -- [--from <email>] [--name <name>] (--body <text> | --file <message.json> | stdin)
@@ -60,7 +63,8 @@ async function main(): Promise<number> {
   const { model, name } = values.model ? createModel(parseModelSpec(values.model)) : configuredModel();
 
   console.log(`Running Intake on Message ${message.id} from ${message.sender.email} (${name}, ${values.board} Board)…\n`);
-  const result = await runIntake(message, { model, board, propertyRoster });
+  const reviewQueue = new InMemoryReviewQueue();
+  const result = await runIntake(message, { model, board, propertyRoster, reviewQueue });
 
   const { proposal, routing } = result;
   console.log(`Classification: ${proposal.classification}`);
@@ -77,6 +81,11 @@ async function main(): Promise<number> {
   }
   printWorkOrders("Created on the Board", result.createdWorkOrders);
   printWorkOrders("Updated on the Board", result.updatedWorkOrders);
+  const pending = reviewQueue.snapshot();
+  if (pending.length > 0) {
+    console.log("\nSent to the Review Queue (not kept after this run):");
+    for (const entry of pending) console.log(`  ${entry.id}  ${entry.routing.outcome} (${entry.routing.reason})`);
+  }
   if (values.trace) console.log(`\nTrace:\n${JSON.stringify(result.trace, null, 2)}`);
   return 0;
 }
