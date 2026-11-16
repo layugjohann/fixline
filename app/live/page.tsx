@@ -32,6 +32,27 @@ type IntakeResponse = z.infer<typeof IntakeResponseSchema>;
 
 const ErrorResponseSchema = z.object({ error: z.string() });
 
+/** Proposal validation rejected the agent's Proposal: the sandbox is unchanged, and the trace shows why. */
+const RejectionResponseSchema = z.object({ error: z.string(), problems: z.array(z.string()), trace: TraceSchema });
+type Rejection = z.infer<typeof RejectionResponseSchema>;
+
+const DecisionResponseSchema = SandboxSchema.extend({ conflicts: z.array(z.string()).optional() });
+
+type Decision =
+  | { decision: "approve" | "acknowledge" }
+  | { decision: "reject"; reason?: string }
+  | { decision: "edit"; proposal: unknown };
+
+/** A failed request, with its parsed response body. */
+class RequestError extends Error {
+  constructor(
+    message: string,
+    readonly body: unknown,
+  ) {
+    super(message);
+  }
+}
+
 const RULE_LABELS: Record<ReviewRule, string> = {
   emergency: "Emergency",
   uncertain: "Flagged uncertain",
@@ -54,7 +75,7 @@ async function post(url: string, body: unknown): Promise<unknown> {
   const parsed: unknown = await response.json();
   if (!response.ok) {
     const failure = ErrorResponseSchema.safeParse(parsed);
-    throw new Error(failure.success ? failure.data.error : "Request failed.");
+    throw new RequestError(failure.success ? failure.data.error : "Request failed.", parsed);
   }
   return parsed;
 }
@@ -65,6 +86,9 @@ export default function LivePage() {
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueEntry[]>([]);
   const [messageIndex, setMessageIndex] = useState(0);
   const [last, setLast] = useState<IntakeResponse | null>(null);
+  // Proposals that Proposal validation rejected. They never reached the Board or the Review Queue.
+  const [rejections, setRejections] = useState<Rejection[]>([]);
+  const [lastRejection, setLastRejection] = useState<Rejection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Counts completed runs, so each new trace starts from its first step.
@@ -86,18 +110,33 @@ export default function LivePage() {
 
   const runIntake = () =>
     run(async () => {
-      const result = IntakeResponseSchema.parse(await post("/api/intake", { message, board, reviewQueue }));
-      setBoard(result.board);
-      setReviewQueue(result.reviewQueue);
-      setLast(result);
-      setRuns((count) => count + 1);
+      try {
+        const result = IntakeResponseSchema.parse(await post("/api/intake", { message, board, reviewQueue }));
+        setBoard(result.board);
+        setReviewQueue(result.reviewQueue);
+        setLast(result);
+        setLastRejection(null);
+      } catch (caught) {
+        const rejection = caught instanceof RequestError ? RejectionResponseSchema.safeParse(caught.body) : undefined;
+        if (!rejection?.success) throw caught;
+        setRejections((previous) => [...previous, rejection.data]);
+        setLastRejection(rejection.data);
+        setLast(null);
+      } finally {
+        setRuns((count) => count + 1);
+      }
     });
 
-  const decide = (entryId: string, decision: "approve" | "reject" | "acknowledge") =>
+  const decide = (entryId: string, decision: Decision) =>
     run(async () => {
-      const result = SandboxSchema.parse(await post("/api/review-queue", { decision, entryId, board, reviewQueue }));
+      const result = DecisionResponseSchema.parse(
+        await post("/api/review-queue", { ...decision, entryId, board, reviewQueue }),
+      );
       setBoard(result.board);
       setReviewQueue(result.reviewQueue);
+      if (result.conflicts) {
+        setError(`The Board changed since this Proposal was made, so it went back to review: ${result.conflicts.join(" ")}`);
+      }
     });
 
   const waiting = reviewQueue.filter((entry) => entry.status === "pending" || entry.status === "flagged");
@@ -152,6 +191,20 @@ export default function LivePage() {
         </>
       )}
 
+      {lastRejection && (
+        <>
+          <h2>Proposal rejected</h2>
+          <p>Proposal validation rejected the agent&apos;s Proposal, so nothing reached the Board or the Review Queue.</p>
+          <ul>
+            {lastRejection.problems.map((problem, index) => (
+              <li key={index}>{problem}</li>
+            ))}
+          </ul>
+          <h2>Trace</h2>
+          <TraceViewer key={runs} trace={lastRejection.trace} />
+        </>
+      )}
+
       <h2>Review Queue</h2>
       {waiting.length === 0 ? (
         <p>Nothing waiting for a Coordinator.</p>
@@ -168,6 +221,19 @@ export default function LivePage() {
           <ul>
             {decided.map((entry) => (
               <ReviewQueueItem key={entry.id} entry={entry} busy={busy} onDecide={decide} />
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {rejections.length > 0 && (
+        <details>
+          <summary>Rejected by validation ({rejections.length})</summary>
+          <ul>
+            {rejections.map((rejection, index) => (
+              <li key={index}>
+                Message {rejection.trace.messageId}: {rejection.problems.join(" ")}
+              </li>
             ))}
           </ul>
         </details>
@@ -201,8 +267,27 @@ function ReviewQueueItem({
 }: {
   entry: ReviewQueueEntry;
   busy: boolean;
-  onDecide: (entryId: string, decision: "approve" | "reject" | "acknowledge") => void;
+  onDecide: (entryId: string, decision: Decision) => void;
 }) {
+  // The Coordinator's edit of the Proposal, as JSON, while they are editing it.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+
+  function saveEdit() {
+    if (draft === null) return;
+    let edited: unknown;
+    try {
+      edited = JSON.parse(draft);
+    } catch {
+      setDraftError("The edited Proposal isn't valid JSON.");
+      return;
+    }
+    setDraftError(null);
+    setDraft(null);
+    onDecide(entry.id, { decision: "edit", proposal: edited });
+  }
+
   return (
     <li>
       <strong>
@@ -213,7 +298,13 @@ function ReviewQueueItem({
       Sent here by: {entry.routing.rules.map((rule) => RULE_LABELS[rule]).join(", ")}
       <br />
       <em>{entry.routing.reason}</em>
+      {entry.conflicts && entry.status === "pending" && (
+        <p role="status" style={{ color: "darkorange" }}>
+          Back in review: the Board changed since this Proposal was made. {entry.conflicts.join(" ")}
+        </p>
+      )}
       <blockquote style={{ whiteSpace: "pre-wrap" }}>{entry.message.body}</blockquote>
+      {entry.agentProposal && <p>Edited by a Coordinator.</p>}
       {entry.proposal.operations.length === 0 ? (
         <p>Proposal: no changes ({entry.proposal.classification}).</p>
       ) : (
@@ -224,18 +315,51 @@ function ReviewQueueItem({
         </ul>
       )}
       <p>{entry.proposal.reasoning}</p>
-      {entry.status === "pending" && (
+      {entry.status === "rejected" && entry.rejectionReason && <p>Rejected: {entry.rejectionReason}</p>}
+      {entry.status === "pending" && draft !== null && (
         <>
-          <button onClick={() => onDecide(entry.id, "approve")} disabled={busy}>
+          <label>
+            Edit the Proposal (operations, Urgency, Trade, labels):
+            <br />
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={16}
+              cols={80}
+              style={{ fontFamily: "monospace" }}
+            />
+          </label>
+          {draftError && <p style={{ color: "crimson" }}>{draftError}</p>}
+          <br />
+          <button onClick={saveEdit} disabled={busy}>
+            Save edit
+          </button>{" "}
+          <button onClick={() => setDraft(null)} disabled={busy}>
+            Cancel
+          </button>
+        </>
+      )}
+      {entry.status === "pending" && draft === null && (
+        <>
+          <button onClick={() => onDecide(entry.id, { decision: "approve" })} disabled={busy}>
             Approve
           </button>{" "}
-          <button onClick={() => onDecide(entry.id, "reject")} disabled={busy}>
+          <button onClick={() => setDraft(JSON.stringify(entry.proposal, null, 2))} disabled={busy}>
+            Edit
+          </button>{" "}
+          <input
+            aria-label="Reason for rejecting"
+            placeholder="Reason for rejecting (optional)"
+            value={rejectionReason}
+            onChange={(event) => setRejectionReason(event.target.value)}
+          />{" "}
+          <button onClick={() => onDecide(entry.id, { decision: "reject", reason: rejectionReason })} disabled={busy}>
             Reject
           </button>
         </>
       )}
       {entry.status === "flagged" && (
-        <button onClick={() => onDecide(entry.id, "acknowledge")} disabled={busy}>
+        <button onClick={() => onDecide(entry.id, { decision: "acknowledge" })} disabled={busy}>
           Acknowledge emergency (already on the Board)
         </button>
       )}

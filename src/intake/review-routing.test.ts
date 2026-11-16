@@ -170,7 +170,7 @@ describe("review policy", () => {
       expect(result.createdWorkOrders).toEqual([]);
       expect(await board.listWorkOrders()).toEqual([]);
       expect(await reviewQueue.list()).toEqual([
-        { id: "RQ-1", message, proposal, routing: result.routing, status: "pending" },
+        { id: "RQ-1", message, proposal, routing: result.routing, status: "pending", attachTargets: [] },
       ]);
       expect(result.reviewQueueEntries).toEqual(await reviewQueue.list());
     });
@@ -244,7 +244,7 @@ describe("review policy", () => {
       expect(await board.listWorkOrders()).toMatchObject([{ id: "WO-1", urgency: "emergency", status: "open" }]);
       expect(result.createdWorkOrders).toMatchObject([{ id: "WO-1" }]);
       expect(await reviewQueue.list()).toEqual([
-        { id: "RQ-1", message, proposal, routing: result.routing, status: "flagged" },
+        { id: "RQ-1", message, proposal, routing: result.routing, status: "flagged", attachTargets: [] },
       ]);
     });
 
@@ -310,6 +310,7 @@ describe("review policy", () => {
           proposal: emergency,
           routing: { outcome: "apply-and-flag", rules: ["emergency"], reason: expect.any(String) },
           status: "flagged",
+          attachTargets: [],
         },
         {
           id: "RQ-2",
@@ -317,6 +318,8 @@ describe("review policy", () => {
           proposal: { ...proposal, operations: [proposal.operations[1]] },
           routing: { outcome: "review", rules: ["cross-tenant-match"], reason: expect.any(String) },
           status: "pending",
+          // Sam's Work Order as it was when queued, so approving can tell if it changed meanwhile.
+          attachTargets: [samCeilingLeak],
         },
       ]);
       expect(result.reviewQueueEntries).toEqual(await reviewQueue.list());
@@ -396,6 +399,7 @@ describe("Review Queue", () => {
     const approved = await approveProposal(result.reviewQueueEntries[0]!.id, deps);
 
     expect(approved.entry.status).toBe("approved");
+    if (approved.outcome !== "applied") throw new Error(`Expected the Proposal to be applied, got ${approved.outcome}.`);
     // An unknown Sender raised it, so no Tenant is recorded.
     expect(approved.createdWorkOrders).toEqual([
       {

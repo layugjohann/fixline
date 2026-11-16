@@ -3,7 +3,7 @@ import path from "node:path";
 import type { LanguageModel } from "ai";
 import { FakeBoard } from "@/board";
 import type { Trace } from "@/domain";
-import { NoProposalError, runIntake } from "@/intake";
+import { InvalidProposalError, NoProposalError, runIntake } from "@/intake";
 import { ModelRateLimitError } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 import { failAll, gradeProposal, type Grade } from "./graders";
@@ -82,6 +82,12 @@ async function runScenario(
         result: { ...base, ...outcome(grades) },
         trace: { messageId: scenario.message.id, steps: error.steps },
       };
+    }
+    if (error instanceof InvalidProposalError) {
+      // Proposal validation rejected it (a missing Work Order, Unit or Common Area, a closed
+      // Work Order, or a broken schema): the agent failed, and the trace shows why.
+      const grades = failAll(`invalid Proposal: ${error.problems.join(" ")}`);
+      return { result: { ...base, ...outcome(grades) }, trace: error.trace };
     }
     // A rate limit or used-up quota means the scenario never ran: it is neither passed nor failed.
     if (error instanceof ModelRateLimitError) return notRun(scenario, error);

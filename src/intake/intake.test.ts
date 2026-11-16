@@ -1,10 +1,10 @@
 import type { LanguageModelV4Prompt } from "@ai-sdk/provider";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
-import { FakeBoard, WorkOrderNotFoundError } from "@/board";
+import { FakeBoard } from "@/board";
 import type { Message, Proposal, WorkOrder } from "@/domain";
 import { propertyRoster } from "@/fixtures";
-import { approveProposal, runIntake } from "@/intake";
+import { InvalidProposalError, approveProposal, runIntake } from "@/intake";
 import { InMemoryReviewQueue } from "@/review-queue";
 
 const usage = {
@@ -446,7 +446,7 @@ describe("Intake", () => {
       });
     });
 
-    it("leaves the Board untouched when one operation of a multi-operation Proposal can't be applied", async () => {
+    it("rejects a multi-operation Proposal whole when one operation references a missing Work Order", async () => {
       const board = new FakeBoard([luisHeating]);
       const proposal: Proposal = {
         ...threeOperations,
@@ -456,10 +456,13 @@ describe("Intake", () => {
         ],
       };
 
+      const reviewQueue = new InMemoryReviewQueue();
+
       await expect(
-        runIntake(luisMessage, { model: scriptedModel(luisMessage.sender.email, proposal), board, propertyRoster, reviewQueue: new InMemoryReviewQueue() }),
-      ).rejects.toBeInstanceOf(WorkOrderNotFoundError);
+        runIntake(luisMessage, { model: scriptedModel(luisMessage.sender.email, proposal), board, propertyRoster, reviewQueue }),
+      ).rejects.toBeInstanceOf(InvalidProposalError);
       expect(await board.listWorkOrders()).toEqual([luisHeating]);
+      expect(await reviewQueue.list()).toEqual([]);
     });
   });
 });

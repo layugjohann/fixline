@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { FakeBoard, WorkOrderNotFoundError } from "@/board";
+import { FakeBoard } from "@/board";
 import { MessageSchema, ReviewQueueEntrySchema, WorkOrderSchema } from "@/domain";
 import { propertyRoster } from "@/fixtures";
-import { ModelRateLimitError, NoProposalError, runIntake } from "@/intake";
+import { InvalidProposalError, ModelRateLimitError, NoProposalError, runIntake } from "@/intake";
 import { ModelNotConfiguredError, configuredModel } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 
@@ -48,10 +48,10 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof NoProposalError) {
       return Response.json({ error: error.message }, { status: 502 });
     }
-    // The agent proposed attaching to a Work Order that isn't on the Board.
-    // Issue 07 adds validation that rejects this before anything is applied.
-    if (error instanceof WorkOrderNotFoundError) {
-      return Response.json({ error: error.message }, { status: 502 });
+    // Proposal validation rejected the agent's Proposal: the sandbox is unchanged, and the
+    // trace shows why so the rejection can be recorded and shown.
+    if (error instanceof InvalidProposalError) {
+      return Response.json({ error: error.message, problems: error.problems, trace: error.trace }, { status: 422 });
     }
     throw error;
   }

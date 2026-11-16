@@ -81,6 +81,18 @@ function Step({ step }: { step: TraceStep }) {
       return <ProposalStep proposal={step.proposal} />;
     case "routing":
       return <RoutingStep decision={step.decision} />;
+    case "rejection":
+      return (
+        <>
+          <strong>Proposal rejected by validation</strong>
+          <p style={{ margin: "0.25rem 0" }}>Nothing reached the Board or the Review Queue.</p>
+          <ul>
+            {step.problems.map((problem, index) => (
+              <li key={index}>{problem}</li>
+            ))}
+          </ul>
+        </>
+      );
     default: {
       // Every step type must be rendered: adding one to the trace format breaks this until it is.
       const unhandled: never = step;

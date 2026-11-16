@@ -236,14 +236,32 @@ export type ReviewQueueEntryStatus = z.infer<typeof ReviewQueueEntryStatusSchema
 export const ReviewQueueEntrySchema = z.object({
   id: z.string(),
   message: MessageSchema,
+  /** The Proposal as it will be applied: the agent's, or a Coordinator's edit of it. */
   proposal: ProposalSchema,
   routing: RoutingDecisionSchema,
   status: ReviewQueueEntryStatusSchema,
+  /**
+   * The Work Orders the Proposal attaches to, as they were on the Board when it was queued (or
+   * last reviewed). Approval compares them with the Board as it is now, so a Work Order that
+   * changed or closed in the meantime is never silently overwritten.
+   */
+  attachTargets: z.array(WorkOrderSchema).default([]),
+  /** The agent's original Proposal, kept once a Coordinator has edited it. */
+  agentProposal: ProposalSchema.optional(),
+  /** Why the last approval sent this Proposal back to review instead of applying it. */
+  conflicts: z.array(z.string()).optional(),
+  /** Why a Coordinator rejected the Proposal, if they said. */
+  rejectionReason: z.string().optional(),
 });
 export type ReviewQueueEntry = z.infer<typeof ReviewQueueEntrySchema>;
 
 /** Fields needed to add a Proposal to the Review Queue. */
 export type NewReviewQueueEntry = Omit<ReviewQueueEntry, "id">;
+
+/** What a Coordinator's decision may change on a Review Queue entry. */
+export type ReviewQueueEntryChanges = Partial<
+  Pick<ReviewQueueEntry, "proposal" | "status" | "attachTargets" | "agentProposal" | "conflicts" | "rejectionReason">
+>;
 
 // --- Trace -----------------------------------------------------------------
 
@@ -261,6 +279,8 @@ export const TraceStepSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("proposal"), proposal: ProposalSchema }),
   z.object({ type: z.literal("routing"), decision: RoutingDecisionSchema }),
+  /** Proposal validation rejected the Proposal: it never reached the Board or the Review Queue. */
+  z.object({ type: z.literal("rejection"), problems: z.array(z.string()) }),
 ]);
 export type TraceStep = z.infer<typeof TraceStepSchema>;
 
