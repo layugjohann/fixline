@@ -4,7 +4,7 @@
 
 > 🚧 Under construction. See the [roadmap](#roadmap).
 >
-> **Demo:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app) opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) runs the agent on one hard-coded Message.
+> **Demo:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app) opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) gives you your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, an inbox of example Messages to process live, a form to send your own Message as a Tenant, and a reset button. The sandbox lives only in your browser; the server stores nothing.
 
 ## The engagement
 
