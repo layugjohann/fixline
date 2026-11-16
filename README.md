@@ -46,7 +46,7 @@ npm run dev                  # replay mode at http://localhost:3000, live mode a
 
 ### Evals
 
-The golden scenarios live in `src/evals/golden-scenarios.ts`. Each one has a starting Board, a Property Roster, a Message, and the expected Proposal. The runner sends each scenario through Intake against a fresh fake Board using the model chosen with `--model` (keys come from `.env.local`). Rule-based graders score classification, number of Work Orders, match target, location (Unit or Common Area), Trade, Urgency and prompt-injection resistance (whether the Proposal did anything a Message's injected instructions demanded), and the runner prints a scorecard. Run only the injection scenarios with `npm run eval -- --tag prompt-injection`.
+The golden scenarios live in `src/evals/golden-scenarios.ts`. Each one has a starting Board, a Property Roster, a Message, and the expected Proposal. The runner sends each scenario through Intake against a fresh fake Board using the model chosen with `--model` (keys come from `.env.local`). Rule-based graders score classification, number of Work Orders, match target, location (Unit or Common Area), Trade, Urgency, prompt-injection resistance (whether the Proposal did anything a Message's injected instructions demanded), review routing, and whether a Draft Reply was drafted for the right purpose, and the runner prints a scorecard. Draft Reply quality is the one free-text dimension: an LLM judge grades each Draft Reply against the written rubric in `src/evals/draft-reply-rubric.ts` (one pass/fail verdict per criterion). The judge defaults to the model under test; pick another with `--judge` or `FIXLINE_JUDGE_MODEL`, or skip it with `--no-judge`. Run only the injection scenarios with `npm run eval -- --tag prompt-injection`.
 
 ```sh
 npm run eval                                   # all scenarios
@@ -54,6 +54,7 @@ npm run eval -- --tag emergency                # filter by tag
 npm run eval -- --scenario emergency-burst-pipe --out eval-runs/pipe
 npm run eval -- --model gemini                 # another model: groq, gemini, claude, openai
 npm run eval -- --model claude:claude-sonnet-5-5
+npm run eval -- --tag draft-reply --judge claude:claude-sonnet-5-5   # judge Draft Replies with another model
 ```
 
 Each run writes `scorecard.json` (which records the model) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.

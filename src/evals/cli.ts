@@ -6,10 +6,16 @@
  *   npm run eval -- --tag emergency --out eval-runs/my-run
  *   npm run eval -- --model gemini
  *   npm run eval -- --model claude:claude-sonnet-5-5
+ *   npm run eval -- --judge claude:claude-sonnet-5-5
+ *   npm run eval -- --no-judge
  *
  * --model takes a model spec, `<provider>[:<modelId>]` with provider groq, gemini, claude or openai
  * (see src/models). It defaults to FIXLINE_MODEL, then groq. Evals pin one model and never fall back,
  * so the scorecard always describes the model it names.
+ *
+ * --judge takes a model spec for the LLM judge that grades Draft Reply quality against the rubric in
+ * draft-reply-rubric.ts. It defaults to FIXLINE_JUDGE_MODEL, then the --model spec. --no-judge skips
+ * the reply-quality dimension.
  *
  * Exits 1 if any scenario fails or errors. Scenarios stopped by a rate limit or quota are reported
  * as not run, not as failures; if nothing could be graded at all the exit code is 3.
@@ -31,6 +37,8 @@ async function main(): Promise<number> {
       tag: { type: "string", multiple: true },
       out: { type: "string" },
       model: { type: "string" },
+      judge: { type: "string" },
+      "no-judge": { type: "boolean" },
     },
   });
 
@@ -50,12 +58,20 @@ async function main(): Promise<number> {
   }
 
   const outputDir = values.out ?? path.join("eval-runs", new Date().toISOString().replace(/[:.]/g, "-"));
-  const { model, name } = createModel(parseModelSpec(values.model ?? process.env.FIXLINE_MODEL ?? "groq"));
+  const modelSpec = values.model ?? process.env.FIXLINE_MODEL ?? "groq";
+  const { model, name } = createModel(parseModelSpec(modelSpec));
+  const judge = values["no-judge"]
+    ? undefined
+    : createModel(parseModelSpec(values.judge ?? process.env.FIXLINE_JUDGE_MODEL ?? modelSpec));
 
-  console.log(`Running ${scenarios.length} scenario(s) on ${name}…`);
+  console.log(
+    `Running ${scenarios.length} scenario(s) on ${name}` +
+      (judge ? `, Draft Replies judged by ${judge.name}…` : ", without a Draft Reply judge…"),
+  );
   const { scorecard } = await runEvals(scenarios, {
     model,
     modelName: name,
+    ...(judge ? { judge: judge.model, judgeName: judge.name } : {}),
     outputDir,
     onScenario: (result) => console.log(`  ${result.status.toUpperCase().padEnd(7)} ${result.scenarioId}`),
   });

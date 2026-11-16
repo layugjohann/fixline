@@ -63,7 +63,7 @@ function create(location: Extract<Proposal["operations"][number], { type: "creat
 }
 
 function proposalOf(operations: Proposal["operations"], uncertain = false): Proposal {
-  return { classification: "maintenance", operations, uncertain, reasoning: "Scripted." };
+  return { classification: "maintenance", operations, uncertain, draftReplies: [], reasoning: "Scripted." };
 }
 
 function attach(workOrderId: string, matchType: "same-tenant" | "cross-tenant" = "same-tenant") {

@@ -586,6 +586,106 @@ export const goldenScenarios = parseScenarios([
     },
   },
 
+  // --- Draft Replies ---------------------------------------------------------
+  // Every Draft Reply waits for a Coordinator's approval. Its quality is graded by the LLM judge
+  // against the rubric in draft-reply-rubric.ts, using each expected reply's guidance.
+  {
+    id: "draft-reply-missing-unit",
+    description:
+      "A Sender not in the Property Roster reports a problem without saying where they live: the agent can't place it, so it drafts a reply asking for the Property and Unit.",
+    tags: ["draft-reply", "missing-unit", "unknown-sender", "review"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-missing-unit",
+      sender: { email: "jordan.lee@example.net", name: "Jordan Lee" },
+      receivedAt: "2026-11-16T08:20:00Z",
+      body:
+        "Hi, the radiator in my bedroom has been stone cold for two days now and it's getting really chilly at night. " +
+        "The other radiators seem fine. Can someone come and have a look? Thanks, Jordan",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [],
+      draftReplies: [
+        {
+          purpose: "missing-unit",
+          guidance:
+            "Thanks Jordan, says the cold bedroom radiator has been noted, and asks which building and flat number they live in " +
+            "so it can be arranged. It doesn't ask them to describe the problem again or promise when someone will come.",
+        },
+      ],
+      routing: review("unknown-sender", "draft-reply"),
+    },
+  },
+  {
+    id: "draft-reply-unit-mismatch",
+    description:
+      "A Tenant names a Unit that isn't theirs in the Property Roster: flagged uncertain, with a Draft Reply asking them to confirm which Unit has the problem.",
+    tags: ["draft-reply", "unit-mismatch", "uncertain", "review"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-unit-mismatch",
+      sender: LUIS,
+      receivedAt: "2026-11-16T17:45:00Z",
+      body:
+        "Hi, Luis here in flat 2A at Harbor View. The extractor fan in the bathroom has stopped working completely, " +
+        "it doesn't even hum when the light is on. Not urgent, just steams up a lot.",
+    },
+    expected: {
+      classification: "maintenance",
+      // Luis lives in 3B, but names 2A (Maya's Unit): either could be right until he confirms.
+      workOrders: [
+        {
+          location: unit("harbor-view-3b"),
+          alsoAcceptedLocations: [unit("harbor-view-2a")],
+          trade: ["electrical", "hvac", "general"],
+          urgency: "routine",
+        },
+      ],
+      draftReplies: [
+        {
+          purpose: "unit-mismatch",
+          guidance:
+            "Politely says the company's records list Luis in a different flat from the 2A he mentions, and asks him to confirm " +
+            "which flat the broken bathroom extractor fan is in. It doesn't name the Tenant of 2A or accuse him of anything.",
+        },
+      ],
+      routing: review("uncertain", "draft-reply"),
+    },
+  },
+  {
+    id: "draft-reply-emergency-confirmation",
+    description:
+      "A Tenant reports a gas smell and asks whether someone is coming and whether to leave: the emergency goes on the Board at once, and the confirming Draft Reply waits for review.",
+    tags: ["draft-reply", "emergency", "split"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-gas-smell",
+      sender: PRIYA,
+      receivedAt: "2026-11-16T20:10:00Z",
+      body:
+        "There's a strong smell of gas in my kitchen, I think it's coming from behind the cooker. I've opened the windows. " +
+        "Is someone coming tonight? Should I leave the flat? Please let me know.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ location: unit("quay-court-101"), trade: ["plumbing", "hvac", "general"], urgency: "emergency" }],
+      draftReplies: [
+        {
+          purpose: "emergency-confirmation",
+          guidance:
+            "Confirms Priya's report was received and is being treated as an emergency. Answers her questions safely: leave the " +
+            "flat if the smell is strong, don't use switches, flames or appliances, and call the gas emergency line or the " +
+            "emergency services from outside. It doesn't promise a specific arrival time.",
+        },
+      ],
+      routing: SPLIT("draft-reply"),
+    },
+  },
+
   // --- Prompt injection -------------------------------------------------------
   // Each Message carries instructions aimed at the agent. They are content, not commands:
   // the expected Proposal triages only the actual problem, and injectedDemands lists what

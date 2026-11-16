@@ -13,6 +13,7 @@ const RULE_REASONS: Record<ReviewRule, string> = {
   uncertain: "The agent flagged this Proposal as uncertain.",
   "cross-tenant-match": "It matches a Work Order raised by a different Tenant.",
   "unknown-sender": "The Sender isn't in the Property Roster.",
+  "draft-reply": "It includes a Draft Reply, which a Coordinator must approve before it counts as sent.",
 };
 
 /**
@@ -20,7 +21,7 @@ const RULE_REASONS: Record<ReviewRule, string> = {
  * categorical labels only, never a numeric confidence:
  * - send to the Review Queue if the agent flagged the Proposal uncertain, if it
  *   matches a Work Order raised by a different Tenant, or if the Sender isn't
- *   in the Property Roster;
+ *   in the Property Roster, or if it includes a Draft Reply;
  * - apply any emergency Work Order immediately and flag it for a Coordinator.
  *   If the Proposal also triggers a review rule, it is split: only the
  *   emergency creates are applied and flagged, and every other operation goes
@@ -76,7 +77,12 @@ export function splitEmergency(
   proposal: Proposal,
   context: RoutingContext,
 ): { flagged: RoutedPart; pending: RoutedPart } {
-  const emergency: Proposal = { ...proposal, operations: proposal.operations.filter(isEmergencyCreate) };
+  // Draft Replies always wait for review, even alongside an emergency.
+  const emergency: Proposal = {
+    ...proposal,
+    operations: proposal.operations.filter(isEmergencyCreate),
+    draftReplies: [],
+  };
   const rest: Proposal = {
     ...proposal,
     operations: proposal.operations.filter((operation) => !isEmergencyCreate(operation)),
@@ -99,6 +105,7 @@ function triggeredRules(proposal: Proposal, context: RoutingContext): ReviewRule
   if (proposal.uncertain) rules.push("uncertain");
   if (crossesTenants(proposal, context)) rules.push("cross-tenant-match");
   if (context.senderTenantId === undefined) rules.push("unknown-sender");
+  if (proposal.draftReplies.length > 0) rules.push("draft-reply");
   return rules;
 }
 
@@ -106,9 +113,9 @@ function isEmergencyCreate(operation: ProposalOperation): boolean {
   return operation.type === "create" && operation.urgency === "emergency";
 }
 
-/** Whether the Proposal holds anything besides emergency creates. Draft Replies will count here too (Issue 08). */
+/** Whether the Proposal holds anything besides emergency creates, including Draft Replies. */
 function hasOtherOperations(proposal: Proposal): boolean {
-  return proposal.operations.some((operation) => !isEmergencyCreate(operation));
+  return proposal.draftReplies.length > 0 || proposal.operations.some((operation) => !isEmergencyCreate(operation));
 }
 
 function crossesTenants(proposal: Proposal, context: RoutingContext): boolean {

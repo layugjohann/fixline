@@ -73,7 +73,8 @@ export const tracerMessage: Message = MessageSchema.parse({
 
 /**
  * Example Messages the page can send through Intake, one per routing outcome
- * a live model should reach: auto-apply, review (unknown Sender), and an emergency.
+ * a live model should reach: auto-apply, review (unknown Sender, or a Draft Reply asking for a
+ * missing Unit), and an emergency.
  */
 export const exampleMessages: Message[] = [
   tracerMessage,
@@ -90,6 +91,15 @@ export const exampleMessages: Message[] = [
     sender: { email: "priya.nair@example.com", name: "Priya Nair" },
     receivedAt: "2026-11-15T22:05:00Z",
     body: "URGENT the pipe under my kitchen sink has burst and water is pouring onto the floor. Please send someone now!",
+  }),
+  // No Unit given by a Sender not in the Property Roster: the agent drafts a reply asking for it.
+  MessageSchema.parse({
+    id: "msg-example-missing-unit",
+    sender: { email: "jordan.lee@example.net", name: "Jordan Lee" },
+    receivedAt: "2026-11-15T11:45:00Z",
+    body:
+      "Hi, the radiator in my bedroom has been stone cold for two days now and it's getting really chilly at night. " +
+      "Can someone come and have a look? Thanks, Jordan",
   }),
   // An emergency plus a review trigger: the emergency is applied and flagged, the rest waits for review.
   MessageSchema.parse({

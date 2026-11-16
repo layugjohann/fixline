@@ -5,7 +5,7 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
 import { FakeBoard } from "@/board";
-import type { Message, Proposal, WorkOrder } from "@/domain";
+import type { DraftReply, Message, Proposal, WorkOrder } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import {
   ReviewQueueEntryNotResolvableError,
@@ -74,6 +74,7 @@ function createIn(unitId: string, urgency: "emergency" | "urgent" | "routine", u
       },
     ],
     uncertain,
+    draftReplies: [],
     reasoning: "Scripted.",
   };
 }
@@ -83,6 +84,7 @@ function attachTo(workOrderId: string, matchType: "same-tenant" | "cross-tenant"
     classification: "maintenance",
     operations: [{ type: "attach", workOrderId, matchType, information: "More detail." }],
     uncertain: false,
+    draftReplies: [],
     reasoning: "Scripted.",
   };
 }
@@ -214,6 +216,7 @@ describe("review policy", () => {
         classification: "not-maintenance",
         operations: [],
         uncertain: false,
+        draftReplies: [],
         reasoning: "Marketing spam.",
       });
 
@@ -483,5 +486,152 @@ describe("Review Queue", () => {
       { id: "RQ-1", message: { id: "msg-a" }, routing: { rules: ["unknown-sender"] }, status: "pending" },
       { id: "RQ-2", message: { id: "msg-b" }, routing: { rules: ["cross-tenant-match"] }, status: "pending" },
     ]);
+  });
+});
+
+describe("Draft Replies", () => {
+  const askForUnit: DraftReply = {
+    purpose: "missing-unit",
+    body: "Hi, thanks for letting us know. Which building and flat number are you in? Harbor Lane Property Management",
+  };
+  const confirmUnit: DraftReply = {
+    purpose: "unit-mismatch",
+    body: "Hi Maya, our records show you in 2A, but your message mentions 3B. Could you confirm which flat has the problem?",
+  };
+  const confirmEmergency: DraftReply = {
+    purpose: "emergency-confirmation",
+    body: "Hi Maya, we've received your report and a plumber is being arranged today. Please keep the water off.",
+  };
+
+  function withReplies(proposal: Proposal, ...draftReplies: DraftReply[]): Proposal {
+    return { ...proposal, draftReplies };
+  }
+
+  it("always routes a Proposal with a Draft Reply to review, whatever else it holds", async () => {
+    const senders = [MAYA, STRANGER];
+    const proposals = [
+      createIn("harbor-view-2a", "routine"),
+      createIn("harbor-view-2a", "urgent"),
+      createIn("harbor-view-2a", "routine", true),
+      createIn("harbor-view-2a", "emergency"),
+      createIn("harbor-view-2a", "emergency", true),
+      withOperations(createIn("harbor-view-2a", "emergency"), createIn("harbor-view-2a", "routine")),
+      attachTo("WO-2", "same-tenant"),
+      { classification: "maintenance", operations: [], uncertain: false, draftReplies: [], reasoning: "Scripted." },
+      { classification: "not-maintenance", operations: [], uncertain: false, draftReplies: [], reasoning: "Scripted." },
+    ] satisfies Proposal[];
+
+    for (const sender of senders) {
+      for (const proposal of proposals) {
+        const { result, reviewQueue } = await intake(
+          messageFrom(sender, "Something is wrong in my flat."),
+          withReplies(proposal, askForUnit),
+          new FakeBoard([mayaTap]),
+        );
+
+        expect(["review", "split"]).toContain(result.routing.outcome);
+        expect(result.routing.rules).toContain("draft-reply");
+        const entries = await reviewQueue.list();
+        // The Draft Reply waits in exactly one pending entry, never in a flagged (already applied) one.
+        expect(entries.filter((entry) => entry.proposal.draftReplies.length > 0)).toMatchObject([
+          { status: "pending", proposal: { draftReplies: [askForUnit] }, routing: { outcome: "review" } },
+        ]);
+        expect(entries.every((entry) => entry.draftRepliesSentAt === undefined)).toBe(true);
+      }
+    }
+  });
+
+  it("sends a clear routine Work Order with a Draft Reply to review instead of applying it", async () => {
+    const { result, board, reviewQueue } = await intake(
+      messageFrom(MAYA, "Hi, I'm in 3B and the wardrobe door sticks."),
+      withReplies(createIn("harbor-view-2a", "routine"), confirmUnit),
+    );
+
+    expect(result.routing).toMatchObject({ outcome: "review", rules: ["draft-reply"] });
+    expect(result.routing.reason).toContain("Draft Reply");
+    expect(await board.listWorkOrders()).toEqual([]);
+    expect(await reviewQueue.list()).toMatchObject([{ status: "pending", proposal: { draftReplies: [confirmUnit] } }]);
+  });
+
+  it("sends a Proposal that only asks the Sender for their Unit to review", async () => {
+    const { result, board } = await intake(messageFrom(STRANGER, "The radiator in my bedroom is cold."), {
+      classification: "maintenance",
+      operations: [],
+      uncertain: true,
+      draftReplies: [askForUnit],
+      reasoning: "Unknown Sender, no Unit given.",
+    });
+
+    expect(result.routing).toMatchObject({ outcome: "review", rules: ["uncertain", "unknown-sender", "draft-reply"] });
+    expect(await board.listWorkOrders()).toEqual([]);
+  });
+
+  it("applies an emergency at once and sends its Draft Reply to review (ADR 0003)", async () => {
+    const message = messageFrom(MAYA, "Pipe burst under the sink! Can someone confirm a plumber is coming?");
+    const emergency = createIn("harbor-view-2a", "emergency");
+
+    const { result, board, reviewQueue } = await intake(message, withReplies(emergency, confirmEmergency));
+
+    expect(result.routing).toMatchObject({ outcome: "split", rules: ["emergency", "draft-reply"] });
+    expect(await board.listWorkOrders()).toMatchObject([{ id: "WO-1", urgency: "emergency" }]);
+    expect(await reviewQueue.list()).toEqual([
+      {
+        id: "RQ-1",
+        message,
+        proposal: emergency,
+        routing: { outcome: "apply-and-flag", rules: ["emergency"], reason: expect.any(String) },
+        status: "flagged",
+        attachTargets: [],
+      },
+      {
+        id: "RQ-2",
+        message,
+        proposal: { ...emergency, operations: [], draftReplies: [confirmEmergency] },
+        routing: { outcome: "review", rules: ["draft-reply"], reason: expect.any(String) },
+        status: "pending",
+        attachTargets: [],
+      },
+    ]);
+  });
+
+  it("marks Draft Replies as sent only when a Coordinator approves them", async () => {
+    const { result, board, reviewQueue, deps } = await intake(
+      messageFrom(MAYA, "Hi, I'm in 3B and the wardrobe door sticks."),
+      withReplies(createIn("harbor-view-2a", "routine"), confirmUnit),
+    );
+    const id = result.reviewQueueEntries[0]!.id;
+    expect((await reviewQueue.get(id))!.draftRepliesSentAt).toBeUndefined();
+
+    const approved = await approveProposal(id, deps, new Date("2026-11-16T10:00:00Z"));
+
+    expect(approved.entry).toMatchObject({ status: "approved", draftRepliesSentAt: "2026-11-16T10:00:00.000Z" });
+    expect(await reviewQueue.get(id)).toMatchObject({ draftRepliesSentAt: "2026-11-16T10:00:00.000Z" });
+    expect(await board.listWorkOrders()).toMatchObject([{ id: "WO-1", urgency: "routine" }]);
+  });
+
+  it("never marks a rejected Draft Reply as sent", async () => {
+    const { result, reviewQueue, deps } = await intake(messageFrom(STRANGER, "The radiator in my bedroom is cold."), {
+      classification: "maintenance",
+      operations: [],
+      uncertain: false,
+      draftReplies: [askForUnit],
+      reasoning: "Unknown Sender, no Unit given.",
+    });
+
+    const rejected = await rejectProposal(result.reviewQueueEntries[0]!.id, deps);
+
+    expect(rejected.status).toBe("rejected");
+    expect((await reviewQueue.list())[0]!.draftRepliesSentAt).toBeUndefined();
+  });
+
+  it("records no sent time when a Coordinator approves a Proposal without Draft Replies", async () => {
+    const { result, deps } = await intake(
+      messageFrom(STRANGER, "I'm in 2A, the towel rail has come loose. No rush."),
+      createIn("harbor-view-2a", "routine"),
+    );
+
+    const approved = await approveProposal(result.reviewQueueEntries[0]!.id, deps);
+
+    expect(approved.entry.draftRepliesSentAt).toBeUndefined();
   });
 });

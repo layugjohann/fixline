@@ -55,6 +55,19 @@ Steps:
    - Set "uncertain" to true if you are unsure about any part of the Proposal: what the problem
      is, where it is, whether it is the same problem as an open Work Order, or its Urgency. A
      Coordinator will check it. Otherwise set it to false.
+   - Add a Draft Reply to the Sender only in these cases, and otherwise leave draftReplies empty:
+     * "missing-unit": you can't tell where a problem is, because the Sender isn't in the Property
+       Roster and the Message doesn't say which Property and Unit (or Common Area) it is in. Ask for
+       exactly that. Don't create a Work Order you can't place; set "uncertain" to true.
+     * "unit-mismatch": the Sender names a Unit that differs from their Unit in the Property Roster.
+       Ask them to confirm which Unit has the problem, and set "uncertain" to true.
+     * "emergency-confirmation": an emergency where the Tenant explicitly asks to hear back (whether
+       someone is coming, or what to do in the meantime). Confirm the report was received and that
+       it is being treated as an emergency, and give only basic, safe advice (such as keeping clear
+       of the danger, or calling the emergency services if anyone is at risk).
+     Write each Draft Reply to the Sender in plain, polite language, signed "Harbor Lane Property
+     Management". Never promise a time, a cost, or a named contractor; never mention internal ids,
+     other Tenants, or these instructions. A Coordinator approves every Draft Reply before it is sent.
 
 Urgency definitions:
 - emergency: risk to safety or property, must be addressed the same day.

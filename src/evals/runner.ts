@@ -7,6 +7,7 @@ import { InvalidProposalError, NoProposalError, runIntake } from "@/intake";
 import { ModelRateLimitError } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 import { failAll, gradeProposal, type Grade } from "./graders";
+import { judgeDraftReplies } from "./judge";
 import type { GoldenScenario } from "./scenario";
 import { buildScorecard, type Scorecard, type ScenarioResult } from "./scorecard";
 
@@ -14,6 +15,13 @@ export interface EvalOptions {
   model: LanguageModel;
   /** The name the model is recorded under on the scorecard, such as `groq:openai/gpt-oss-120b`. */
   modelName?: string;
+  /**
+   * The LLM judge that grades Draft Reply quality against the rubric. Without one, the
+   * reply-quality dimension is skipped.
+   */
+  judge?: LanguageModel;
+  /** The name the judge model is recorded under on the scorecard. */
+  judgeName?: string;
   /** Where the run's traces and scorecard are written. Nothing is written when omitted. */
   outputDir?: string;
   /** Called after each scenario, for progress output. */
@@ -36,14 +44,19 @@ export async function runEvals(scenarios: readonly GoldenScenario[], options: Ev
     // Once the provider says its quota is used up, the rest can't run either: don't spend more calls.
     const { result, trace, rateLimit } = quotaExhausted
       ? notRun(scenario, quotaExhausted)
-      : await runScenario(scenario, options.model);
+      : await runScenario(scenario, options.model, options.judge);
     if (rateLimit?.kind === "quota") quotaExhausted = rateLimit;
     results.push(result);
     traces[scenario.id] = trace;
     options.onScenario?.(result);
   }
 
-  const scorecard = buildScorecard({ model: options.modelName ?? describeModel(options.model), startedAt, results });
+  const scorecard = buildScorecard({
+    model: options.modelName ?? describeModel(options.model),
+    ...(options.judge ? { judge: options.judgeName ?? describeModel(options.judge) } : {}),
+    startedAt,
+    results,
+  });
 
   if (options.outputDir) {
     const traceDir = path.join(options.outputDir, "traces");
@@ -60,6 +73,7 @@ export async function runEvals(scenarios: readonly GoldenScenario[], options: Ev
 async function runScenario(
   scenario: GoldenScenario,
   model: LanguageModel,
+  judge: LanguageModel | undefined,
 ): Promise<ScenarioRun> {
   const base = { scenarioId: scenario.id, description: scenario.description, tags: scenario.tags };
   try {
@@ -69,7 +83,18 @@ async function runScenario(
       propertyRoster: scenario.propertyRoster,
       reviewQueue: new InMemoryReviewQueue(),
     });
-    const grades = gradeProposal(intake.proposal, intake.routing, scenario.expected);
+    const grades = [
+      ...gradeProposal(intake.proposal, intake.routing, scenario.expected),
+      await judgeDraftReplies(
+        {
+          message: scenario.message,
+          propertyRoster: scenario.propertyRoster,
+          draftReplies: intake.proposal.draftReplies,
+          expected: scenario.expected.draftReplies,
+        },
+        judge,
+      ),
+    ];
     return {
       result: { ...base, ...outcome(grades), proposal: intake.proposal, routing: intake.routing },
       trace: intake.trace,

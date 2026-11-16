@@ -75,6 +75,7 @@ const samples: Sample[] = [
     proposal: {
       classification: "maintenance",
       uncertain: false,
+      draftReplies: [],
       operations: [
         {
           type: "create",
@@ -112,6 +113,7 @@ const samples: Sample[] = [
     proposal: {
       classification: "maintenance",
       uncertain: false,
+      draftReplies: [],
       operations: [
         {
           type: "attach",
@@ -146,6 +148,7 @@ const samples: Sample[] = [
     proposal: {
       classification: "maintenance",
       uncertain: false,
+      draftReplies: [],
       operations: [
         {
           type: "attach",
@@ -172,6 +175,7 @@ const samples: Sample[] = [
     proposal: {
       classification: "maintenance",
       uncertain: false,
+      draftReplies: [],
       operations: [
         {
           type: "create",
@@ -192,6 +196,7 @@ const samples: Sample[] = [
     proposal: {
       classification: "not-maintenance",
       uncertain: false,
+      draftReplies: [],
       operations: [],
       reasoning: "The Message asks about rent, not a maintenance problem, so no Work Order is proposed.",
     },

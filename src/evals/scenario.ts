@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  DraftReplyPurposeSchema,
   MessageSchema,
   PropertyRosterSchema,
   ReviewRuleSchema,
@@ -10,6 +11,7 @@ import {
   WorkOrderSchema,
   locationId,
   sameLocation,
+  type WorkOrderLocation,
 } from "@/domain";
 
 /** One Work Order the expected Proposal should create. */
@@ -17,11 +19,21 @@ export const ExpectedWorkOrderSchema = z.object({
   type: z.literal("create").default("create"),
   /** The Unit, or the Common Area for a problem in a shared space. */
   location: WorkOrderLocationSchema,
+  /**
+   * Other locations that are also acceptable, when the Message leaves it genuinely open (a Sender
+   * naming a Unit that doesn't match their Property Roster entry).
+   */
+  alsoAcceptedLocations: z.array(WorkOrderLocationSchema).optional(),
   /** The Trade, or the list of Trades that are all acceptable for an ambiguous problem. */
   trade: z.union([TradeSchema, z.array(TradeSchema).nonempty()]),
   urgency: UrgencySchema,
 });
 export type ExpectedWorkOrder = z.infer<typeof ExpectedWorkOrderSchema>;
+
+/** Every location acceptable for an expected new Work Order. */
+export function acceptableLocations(workOrder: ExpectedWorkOrder): WorkOrderLocation[] {
+  return [workOrder.location, ...(workOrder.alsoAcceptedLocations ?? [])];
+}
 
 /** An existing open Work Order the expected Proposal should attach the Message to. */
 export const ExpectedAttachSchema = z.object({
@@ -52,6 +64,14 @@ export const InjectedDemandSchema = z.discriminatedUnion("type", [
 ]);
 export type InjectedDemand = z.infer<typeof InjectedDemandSchema>;
 
+/** A Draft Reply the Proposal is expected to include. */
+export const ExpectedDraftReplySchema = z.object({
+  purpose: DraftReplyPurposeSchema,
+  /** What a good reply does in this scenario. The LLM judge reads it alongside the rubric. */
+  guidance: z.string(),
+});
+export type ExpectedDraftReply = z.infer<typeof ExpectedDraftReplySchema>;
+
 /** How the review policy is expected to route the Proposal. */
 export const ExpectedRoutingSchema = z.object({
   outcome: RoutingOutcomeSchema,
@@ -70,6 +90,8 @@ export const ExpectedProposalSchema = z.object({
    * force. The injection grader fails the Proposal if it shows any of them.
    */
   injectedDemands: z.array(InjectedDemandSchema).optional(),
+  /** The Draft Replies expected, one per purpose. Usually none. */
+  draftReplies: z.array(ExpectedDraftReplySchema).default([]),
   routing: ExpectedRoutingSchema,
 });
 export type ExpectedProposal = z.infer<typeof ExpectedProposalSchema>;
@@ -103,14 +125,15 @@ export const GoldenScenarioSchema = z
         }
         return;
       }
-      const { location } = workOrder;
-      const known = location.type === "unit" ? unitIds.has(location.unitId) : commonAreaIds.has(location.commonAreaId);
-      if (!known) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["expected", "workOrders", index, "location"],
-          message: `${location.type === "unit" ? "Unit" : "Common Area"} ${locationId(location)} is not in the scenario's Property Roster`,
-        });
+      for (const location of acceptableLocations(workOrder)) {
+        const known = location.type === "unit" ? unitIds.has(location.unitId) : commonAreaIds.has(location.commonAreaId);
+        if (!known) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["expected", "workOrders", index, "location"],
+            message: `${location.type === "unit" ? "Unit" : "Common Area"} ${locationId(location)} is not in the scenario's Property Roster`,
+          });
+        }
       }
     });
     // An injected demand must contradict the expected outcome, or obeying it would be indistinguishable from
@@ -123,7 +146,8 @@ export const GoldenScenarioSchema = z
         (demand.type === "trade" && creates.some((w) => (typeof w.trade === "string" ? [w.trade] : w.trade).includes(demand.trade))) ||
         (demand.type === "attach" &&
           scenario.expected.workOrders.some((w) => w.type === "attach" && w.workOrderId === demand.workOrderId)) ||
-        (demand.type === "create" && creates.some((w) => sameLocation(w.location, demand.location)));
+        (demand.type === "create" &&
+          creates.some((w) => acceptableLocations(w).some((location) => sameLocation(location, demand.location))));
       if (consistent) {
         ctx.addIssue({
           code: "custom",
@@ -135,7 +159,8 @@ export const GoldenScenarioSchema = z
     const { routing } = scenario.expected;
     const isEmergencyCreate = (w: ExpectedOperation) => w.type !== "attach" && w.urgency === "emergency";
     const expectsEmergency = scenario.expected.workOrders.some(isEmergencyCreate);
-    const expectsOthers = scenario.expected.workOrders.some((w) => !isEmergencyCreate(w));
+    const expectsReplies = scenario.expected.draftReplies.length > 0;
+    const expectsOthers = expectsReplies || scenario.expected.workOrders.some((w) => !isEmergencyCreate(w));
     const reviewRules = routing.rules.filter((rule) => rule !== "emergency");
     const routingProblem =
       routing.outcome === "auto-apply" && routing.rules.length > 0
@@ -148,9 +173,19 @@ export const GoldenScenarioSchema = z
               ? "A split Proposal names the emergency rule and a review rule, and expects operations besides the emergency"
               : routing.rules.includes("emergency") !== expectsEmergency
                 ? "The emergency rule triggers exactly when an emergency Work Order is expected"
-                : undefined;
+                : routing.rules.includes("draft-reply") !== expectsReplies
+                  ? "The draft-reply rule triggers exactly when a Draft Reply is expected"
+                  : undefined;
     if (routingProblem) {
       ctx.addIssue({ code: "custom", path: ["expected", "routing"], message: routingProblem });
+    }
+    const purposes = scenario.expected.draftReplies.map((reply) => reply.purpose);
+    if (new Set(purposes).size !== purposes.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expected", "draftReplies"],
+        message: "Expect at most one Draft Reply per purpose",
+      });
     }
     if (scenario.expected.classification === "not-maintenance" && scenario.expected.workOrders.length > 0) {
       ctx.addIssue({
