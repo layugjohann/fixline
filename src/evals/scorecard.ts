@@ -1,4 +1,4 @@
-import type { Proposal } from "@/domain";
+import type { Proposal, RoutingDecision } from "@/domain";
 import type { RateLimitKind } from "@/models";
 import { DIMENSIONS, type Dimension, type Grade } from "./graders";
 
@@ -15,6 +15,7 @@ export interface ScenarioResult {
   rateLimit?: RateLimitKind;
   grades: Grade[];
   proposal?: Proposal;
+  routing?: RoutingDecision;
   error?: string;
 }
 

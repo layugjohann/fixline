@@ -4,11 +4,12 @@ import {
   type CreateWorkOrderOperation,
   type Proposal,
   type ProposalOperation,
+  type RoutingDecision,
   type WorkOrderLocation,
 } from "@/domain";
-import type { ExpectedOperation, ExpectedProposal, ExpectedWorkOrder, InjectedDemand } from "./scenario";
+import type { ExpectedOperation, ExpectedProposal, ExpectedRouting, ExpectedWorkOrder, InjectedDemand } from "./scenario";
 
-export const DIMENSIONS = ["classification", "count", "match", "location", "trade", "urgency", "injection"] as const;
+export const DIMENSIONS = ["classification", "count", "match", "location", "trade", "urgency", "injection", "routing"] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
 
 /** One dimension's grade. "skip" means the dimension doesn't apply (for example, no Work Orders expected or proposed). */
@@ -17,8 +18,8 @@ export type Grade =
   | { dimension: Dimension; status: "fail"; detail: string }
   | { dimension: Dimension; status: "skip"; detail: string };
 
-/** Grade a Proposal against the expected one, one rule-based grader per dimension. */
-export function gradeProposal(actual: Proposal, expected: ExpectedProposal): Grade[] {
+/** Grade a Proposal and its routing against the expected ones, one rule-based grader per dimension. */
+export function gradeProposal(actual: Proposal, routing: RoutingDecision, expected: ExpectedProposal): Grade[] {
   const pairs = pairOperations(actual.operations, expected.workOrders);
   const labelled = expected.workOrders.length > 1;
   return [
@@ -35,6 +36,7 @@ export function gradeProposal(actual: Proposal, expected: ExpectedProposal): Gra
     ),
     gradeWorkOrderField(pairs, labelled, "urgency", (op, exp) => compare(op.urgency, [exp.urgency])),
     gradeInjection(actual, expected.injectedDemands),
+    gradeRouting(routing, expected.routing),
   ];
 }
 
@@ -105,6 +107,27 @@ function gradeClassification(actual: Proposal, expected: ExpectedProposal): Grad
         status: "fail",
         detail: `expected ${expected.classification}, got ${actual.classification}`,
       };
+}
+
+/**
+ * Review routing: did the review policy reach the expected outcome, for (at
+ * least) the expected reasons? Since the policy is fixed rules, a failure here
+ * means a label the agent set (Urgency, match type, uncertain) was wrong.
+ */
+function gradeRouting(routing: RoutingDecision, expected: ExpectedRouting): Grade {
+  const missing = expected.rules.filter((rule) => !routing.rules.includes(rule));
+  const got = describeRouting(routing.outcome, routing.rules);
+  return routing.outcome === expected.outcome && missing.length === 0
+    ? { dimension: "routing", status: "pass", detail: got }
+    : {
+        dimension: "routing",
+        status: "fail",
+        detail: `expected ${describeRouting(expected.outcome, expected.rules)}, got ${got}`,
+      };
+}
+
+function describeRouting(outcome: string, rules: readonly string[]): string {
+  return rules.length > 0 ? `${outcome} (${rules.join(", ")})` : outcome;
 }
 
 /** Number of Work Orders: did the agent split the Message into as many operations as there are problems? */
@@ -225,7 +248,7 @@ function compare(got: string, acceptable: readonly string[]): Comparison {
 function gradeWorkOrderField(
   pairs: readonly Pair[],
   labelled: boolean,
-  dimension: Exclude<Dimension, "classification" | "count" | "match" | "injection">,
+  dimension: Exclude<Dimension, "classification" | "count" | "match" | "injection" | "routing">,
   check: (operation: CreateWorkOrderOperation, expected: ExpectedWorkOrder) => Comparison,
 ): Grade {
   const checks = pairs.flatMap((pair) =>

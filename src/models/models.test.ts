@@ -14,6 +14,7 @@ import {
   toModelRateLimitError,
   withRateLimitFallback,
 } from "@/models";
+import { InMemoryReviewQueue } from "@/review-queue";
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
@@ -123,7 +124,7 @@ describe("rate limits and quotas", () => {
         throw providerError(429, "Rate limit reached");
       },
     });
-    const run = runIntake(message, { model, board: new FakeBoard(), propertyRoster });
+    const run = runIntake(message, { model, board: new FakeBoard(), propertyRoster, reviewQueue: new InMemoryReviewQueue() });
     await expect(run).rejects.toBeInstanceOf(ModelRateLimitError);
     await expect(run).rejects.not.toBeInstanceOf(NoProposalError);
   });
@@ -149,13 +150,14 @@ describe("rate limits and quotas", () => {
               urgency: "urgent",
             },
           ],
+          uncertain: false,
           reasoning: "One plumbing problem.",
         }),
       ],
     });
     const board = new FakeBoard();
 
-    const result = await runIntake(message, { model: withRateLimitFallback(primary, fallback), board, propertyRoster });
+    const result = await runIntake(message, { model: withRateLimitFallback(primary, fallback), board, propertyRoster, reviewQueue: new InMemoryReviewQueue() });
 
     expect(result.routing.outcome).toBe("auto-apply");
     expect(await board.listWorkOrders()).toHaveLength(1);
@@ -171,7 +173,7 @@ describe("rate limits and quotas", () => {
     const fallback = new MockLanguageModelV4({ doGenerate: [] });
 
     await expect(
-      runIntake(message, { model: withRateLimitFallback(primary, fallback), board: new FakeBoard(), propertyRoster }),
+      runIntake(message, { model: withRateLimitFallback(primary, fallback), board: new FakeBoard(), propertyRoster, reviewQueue: new InMemoryReviewQueue() }),
     ).rejects.toThrow("Invalid API key");
     expect(fallback.doGenerateCalls).toHaveLength(0);
   });
