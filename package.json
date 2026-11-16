@@ -16,7 +16,10 @@
     "eval": "tsx src/evals/cli.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.105",
+    "@ai-sdk/google": "^4.0.121",
     "@ai-sdk/groq": "^4.0.84",
+    "@ai-sdk/openai": "^4.0.118",
     "ai": "^7.0.173",
     "next": "^16.4.6",
     "react": "^19.3.1",

@@ -4,13 +4,20 @@
  *   npm run eval                                # every golden scenario
  *   npm run eval -- --scenario emergency-burst-pipe --scenario urgent-fridge-not-cooling
  *   npm run eval -- --tag emergency --out eval-runs/my-run
+ *   npm run eval -- --model gemini
+ *   npm run eval -- --model claude:claude-sonnet-5-5
  *
- * Uses the configured model (see src/models). Exits 1 if any scenario fails or errors.
+ * --model takes a model spec, `<provider>[:<modelId>]` with provider groq, gemini, claude or openai
+ * (see src/models). It defaults to FIXLINE_MODEL, then groq. Evals pin one model and never fall back,
+ * so the scorecard always describes the model it names.
+ *
+ * Exits 1 if any scenario fails or errors. Scenarios stopped by a rate limit or quota are reported
+ * as not run, not as failures; if nothing could be graded at all the exit code is 3.
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { defaultModel } from "@/models";
+import { createModel, parseModelSpec } from "@/models";
 import { goldenScenarios } from "./golden-scenarios";
 import { runEvals } from "./runner";
 import { formatScorecard } from "./scorecard";
@@ -23,6 +30,7 @@ async function main(): Promise<number> {
       scenario: { type: "string", multiple: true },
       tag: { type: "string", multiple: true },
       out: { type: "string" },
+      model: { type: "string" },
     },
   });
 
@@ -42,19 +50,23 @@ async function main(): Promise<number> {
   }
 
   const outputDir = values.out ?? path.join("eval-runs", new Date().toISOString().replace(/[:.]/g, "-"));
-  const model = defaultModel();
+  const { model, name } = createModel(parseModelSpec(values.model ?? process.env.FIXLINE_MODEL ?? "groq"));
 
-  console.log(`Running ${scenarios.length} scenario(s)…`);
+  console.log(`Running ${scenarios.length} scenario(s) on ${name}…`);
   const { scorecard } = await runEvals(scenarios, {
     model,
+    modelName: name,
     outputDir,
-    onScenario: (result) => console.log(`  ${result.status.toUpperCase().padEnd(5)} ${result.scenarioId}`),
+    onScenario: (result) => console.log(`  ${result.status.toUpperCase().padEnd(7)} ${result.scenarioId}`),
   });
 
   console.log(`\n${formatScorecard(scorecard)}\n`);
   console.log(`Scorecard: ${path.join(outputDir, "scorecard.json")}`);
   console.log(`Traces:    ${path.join(outputDir, "traces")}/`);
-  return scorecard.totals.failed + scorecard.totals.errored > 0 ? 1 : 0;
+  const { totals } = scorecard;
+  if (totals.failed + totals.errored > 0) return 1;
+  if (totals.notRun === totals.scenarios) return 3;
+  return 0;
 }
 
 main().then(

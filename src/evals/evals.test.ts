@@ -169,6 +169,7 @@ describe("eval runner", () => {
       passed: goldenScenarios.length,
       failed: 0,
       errored: 0,
+      notRun: 0,
     });
     for (const dimension of scorecard.dimensions) {
       expect(dimension.score).toBe(1);
@@ -401,25 +402,90 @@ describe("eval runner", () => {
     );
   });
 
-  it("reports a rate limit as an error, not as an agent failure", async () => {
+  it("marks a rate-limited scenario as not run, not failed, and keeps grading the rest", async () => {
+    const fridge = scenario("urgent-fridge-not-cooling");
+    const bulb = scenario("routine-blown-bulb");
+    const proposals = { [bulb.message.id]: perfectProposal(bulb) };
+    const scripted = scriptedModel(proposals);
+    const model = new MockLanguageModelV4({
+      doGenerate: async (options) => {
+        if (JSON.stringify(options.prompt).includes(fridge.message.id)) {
+          throw providerError(429, "Rate limit reached for requests per minute", { "retry-after": "12" });
+        }
+        return scripted.doGenerate(options);
+      },
+    });
+
+    const { scorecard } = await runEvals([fridge, bulb], { model, modelName: "groq:test-model" });
+
+    expect(scorecard.totals).toEqual({ scenarios: 2, passed: 1, failed: 0, errored: 0, notRun: 1 });
+    expect(scorecard.scenarios[0]).toMatchObject({ status: "not-run", rateLimit: "rate-limit", grades: [] });
+    expect(scorecard.scenarios[0]!.error).toContain("ModelRateLimitError");
+    expect(scorecard.scenarios[1]).toMatchObject({ status: "pass" });
+    for (const dimension of scorecard.dimensions) {
+      // The bulb Message has no injected instructions, so its injection dimension is skipped.
+      const expected = dimension.dimension === "injection" ? { graded: 0, passed: 0 } : { graded: 1, passed: 1 };
+      expect(dimension).toMatchObject(expected);
+    }
+    const printed = formatScorecard(scorecard);
+    expect(printed).toContain("1 not run");
+    expect(printed).not.toContain("Failures");
+  });
+
+  it("stops calling the model once its quota is used up, marking the remaining scenarios not run", async () => {
+    const scenarios = [scenario("urgent-fridge-not-cooling"), scenario("routine-blown-bulb"), scenario("emergency-burst-pipe")];
+    let calls = 0;
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        calls += 1;
+        throw providerError(429, '{"error":{"status":"RESOURCE_EXHAUSTED","message":"Quota exceeded"}}');
+      },
+    });
+
+    const { scorecard } = await runEvals(scenarios, { model });
+
+    expect(scorecard.totals).toMatchObject({ scenarios: 3, failed: 0, errored: 0, notRun: 3 });
+    expect(scorecard.scenarios.every((s) => s.status === "not-run" && s.rateLimit === "quota")).toBe(true);
+    expect(scorecard.dimensions.every((d) => d.graded === 0)).toBe(true);
+    // Only the first scenario reached the provider.
+    expect(calls).toBe(1);
+  });
+
+  it("records the model it ran on the scorecard", async () => {
+    const bulb = scenario("routine-blown-bulb");
+    const model = scriptedModel({ [bulb.message.id]: perfectProposal(bulb) });
+
+    const named = await runEvals([bulb], { model, modelName: "gemini:gemini-flash-latest" });
+    expect(named.scorecard.model).toBe("gemini:gemini-flash-latest");
+    expect(formatScorecard(named.scorecard)).toContain("model gemini:gemini-flash-latest");
+
+    const unnamed = await runEvals([bulb], { model });
+    expect(unnamed.scorecard.model).toBe(`${model.provider}:${model.modelId}`);
+  });
+
+  it("still reports other infrastructure errors as errors, not as agent failures", async () => {
     const fridge = scenario("urgent-fridge-not-cooling");
     const model = new MockLanguageModelV4({
       doGenerate: async () => {
-        throw new APICallError({
-          message: "Rate limit reached",
-          url: "https://example.invalid",
-          requestBodyValues: {},
-          statusCode: 429,
-          isRetryable: false,
-        });
+        throw providerError(401, "Invalid API key");
       },
     });
 
     const { scorecard } = await runEvals([fridge], { model });
 
-    expect(scorecard.totals).toMatchObject({ failed: 0, errored: 1 });
+    expect(scorecard.totals).toMatchObject({ failed: 0, errored: 1, notRun: 0 });
     expect(scorecard.scenarios[0]).toMatchObject({ status: "error", grades: [] });
-    expect(scorecard.scenarios[0]!.error).toContain("ModelRateLimitError");
-    expect(scorecard.dimensions.every((d) => d.graded === 0)).toBe(true);
   });
 });
+
+function providerError(statusCode: number, body: string, responseHeaders?: Record<string, string>) {
+  return new APICallError({
+    message: body,
+    url: "https://example.invalid",
+    requestBodyValues: {},
+    statusCode,
+    responseHeaders,
+    responseBody: body,
+    isRetryable: false,
+  });
+}

@@ -5,7 +5,8 @@ import { runAgent } from "./agent";
 import { applyProposal } from "./applier";
 import { decideRouting } from "./review-policy";
 
-export { ModelRateLimitError, NoProposalError } from "./agent";
+export { NoProposalError } from "./agent";
+export { ModelRateLimitError } from "@/models";
 
 export interface IntakeDependencies {
   model: LanguageModel;
