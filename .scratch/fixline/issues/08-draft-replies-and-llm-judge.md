@@ -4,7 +4,8 @@
 
 **Blocked by:** 06
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/12
 
 - [ ] The Proposal can include Draft Replies
 - [ ] Any Proposal with a Draft Reply is always routed to review (deterministic test)
@@ -26,3 +27,5 @@ Usage: Implementer 88 input, 41,923 output, 138,836 cache creation, 4,588,446 ca
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-08-2026-11-16T15-40-09-405Z.log`).
 
 Usage: Body writer 2 input, 1,569 output, 48,985 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/12
