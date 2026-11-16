@@ -4,7 +4,8 @@
 
 **Blocked by:** 02, 06
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/13
 
 - [ ] A first visit seeds the sandbox from fixtures
 - [ ] The inbox lists example Messages, and processing one runs Intake live
@@ -26,3 +27,5 @@ Usage: Implementer 34 input, 20,812 output, 64,740 cache creation, 914,945 cache
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-12-2026-11-16T15-46-14-591Z.log`).
 
 Usage: Body writer 2 input, 1,353 output, 33,862 cache creation, 11,370 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/13
