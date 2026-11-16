@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   MessageSchema,
   PropertyRosterSchema,
+  ReviewRuleSchema,
+  RoutingOutcomeSchema,
   TradeSchema,
   UrgencySchema,
   WorkOrderLocationSchema,
@@ -31,11 +33,20 @@ export type ExpectedAttach = z.infer<typeof ExpectedAttachSchema>;
 export const ExpectedOperationSchema = z.union([ExpectedAttachSchema, ExpectedWorkOrderSchema]);
 export type ExpectedOperation = z.infer<typeof ExpectedOperationSchema>;
 
-/** The parts of a Proposal the rule-based graders check. */
+/** How the review policy is expected to route the Proposal. */
+export const ExpectedRoutingSchema = z.object({
+  outcome: RoutingOutcomeSchema,
+  /** Rules that must trigger. Other rules may trigger too (an unknown Sender may also be flagged uncertain). */
+  rules: z.array(ReviewRuleSchema).default([]),
+});
+export type ExpectedRouting = z.infer<typeof ExpectedRoutingSchema>;
+
+/** The parts of a Proposal, and its routing, the rule-based graders check. */
 export const ExpectedProposalSchema = z.object({
   classification: z.enum(["maintenance", "not-maintenance"]),
   /** One entry per expected operation. Order doesn't matter: graders pair them with the proposed ones. */
   workOrders: z.array(ExpectedOperationSchema),
+  routing: ExpectedRoutingSchema,
 });
 export type ExpectedProposal = z.infer<typeof ExpectedProposalSchema>;
 
@@ -78,6 +89,18 @@ export const GoldenScenarioSchema = z
         });
       }
     });
+    const { routing } = scenario.expected;
+    const routingProblem =
+      routing.outcome === "auto-apply" && routing.rules.length > 0
+        ? "An auto-applied Proposal triggers no review rules"
+        : routing.outcome === "apply-and-flag" && !routing.rules.includes("emergency")
+          ? "Only the emergency rule applies and flags a Proposal"
+          : routing.outcome === "review" && (routing.rules.length === 0 || routing.rules.includes("emergency"))
+            ? "A Proposal sent to review names the non-emergency rule(s) that send it there"
+            : undefined;
+    if (routingProblem) {
+      ctx.addIssue({ code: "custom", path: ["expected", "routing"], message: routingProblem });
+    }
     if (scenario.expected.classification === "not-maintenance" && scenario.expected.workOrders.length > 0) {
       ctx.addIssue({
         code: "custom",

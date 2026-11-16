@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { FakeBoard, WorkOrderNotFoundError } from "@/board";
 import type { Message, Proposal, WorkOrder } from "@/domain";
 import { propertyRoster } from "@/fixtures";
-import { runIntake } from "@/intake";
+import { approveProposal, runIntake } from "@/intake";
+import { InMemoryReviewQueue } from "@/review-queue";
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
@@ -48,6 +49,7 @@ const createProposal: Proposal = {
       urgency: "urgent",
     },
   ],
+  uncertain: false,
   reasoning: "Known Tenant in Unit 2A reports one plumbing problem.",
 };
 
@@ -59,6 +61,7 @@ describe("Intake", () => {
       model: scriptedModel(message.sender.email, createProposal),
       board,
       propertyRoster,
+      reviewQueue: new InMemoryReviewQueue(),
     });
 
     expect(result.proposal).toEqual(createProposal);
@@ -73,6 +76,7 @@ describe("Intake", () => {
         urgency: "urgent",
         status: "open",
         messageIds: ["msg-1"],
+        raisedByTenantId: "tenant-maya",
       },
     ]);
   });
@@ -95,6 +99,7 @@ describe("Intake", () => {
       model: scriptedModel(message.sender.email, createProposal),
       board,
       propertyRoster,
+      reviewQueue: new InMemoryReviewQueue(),
     });
 
     const workOrders = await board.listWorkOrders();
@@ -111,6 +116,7 @@ describe("Intake", () => {
       model: scriptedModel(message.sender.email, createProposal),
       board: new FakeBoard(),
       propertyRoster,
+      reviewQueue: new InMemoryReviewQueue(),
     });
 
     const trace = JSON.parse(JSON.stringify(result.trace));
@@ -140,6 +146,7 @@ describe("Intake", () => {
       urgency: "urgent",
       status: "open",
       messageIds: ["msg-0b"],
+      raisedByTenantId: "tenant-maya",
     };
     const oldBoiler: WorkOrder = {
       id: "WO-3",
@@ -162,8 +169,9 @@ describe("Intake", () => {
     const attachProposal: Proposal = {
       classification: "maintenance",
       operations: [
-        { type: "attach", workOrderId: "WO-2", information: "Still dripping after several days; now leaks from the base." },
+        { type: "attach", workOrderId: "WO-2", matchType: "same-tenant", information: "Still dripping after several days; now leaks from the base." },
       ],
+      uncertain: false,
       reasoning: "Follow-up from the same Tenant about the open kitchen tap Work Order.",
     };
 
@@ -182,7 +190,7 @@ describe("Intake", () => {
     it("attaches the Message to the matched Work Order instead of creating a duplicate", async () => {
       const board = new FakeBoard([windowLatch, kitchenTap, oldBoiler]);
 
-      const result = await runIntake(followUp, { model: matchingModel(attachProposal), board, propertyRoster });
+      const result = await runIntake(followUp, { model: matchingModel(attachProposal), board, propertyRoster, reviewQueue: new InMemoryReviewQueue() });
 
       expect(result.proposal).toEqual(attachProposal);
       expect(result.routing.outcome).toBe("auto-apply");
@@ -201,7 +209,7 @@ describe("Intake", () => {
     it("lets the agent search only open Work Orders and read a single Work Order", async () => {
       const board = new FakeBoard([windowLatch, kitchenTap, oldBoiler]);
 
-      const result = await runIntake(followUp, { model: matchingModel(attachProposal), board, propertyRoster });
+      const result = await runIntake(followUp, { model: matchingModel(attachProposal), board, propertyRoster, reviewQueue: new InMemoryReviewQueue() });
 
       const toolCalls = result.trace.steps.filter((step) => step.type === "tool-call");
       expect(toolCalls).toContainEqual({
@@ -231,6 +239,7 @@ describe("Intake", () => {
         model,
         board: new FakeBoard([windowLatch, kitchenTap, oldBoiler]),
         propertyRoster,
+        reviewQueue: new InMemoryReviewQueue(),
       });
 
       const outputs = result.trace.steps.flatMap((step) =>
@@ -252,6 +261,7 @@ describe("Intake", () => {
       urgency: "urgent",
       status: "open",
       messageIds: ["msg-0"],
+      raisedByTenantId: "tenant-luis",
     };
     const luisMessage: Message = {
       id: "msg-luis",
@@ -262,7 +272,7 @@ describe("Intake", () => {
     const threeOperations: Proposal = {
       classification: "maintenance",
       operations: [
-        { type: "attach", workOrderId: "WO-1", information: "Heating has failed again." },
+        { type: "attach", workOrderId: "WO-1", matchType: "same-tenant", information: "Heating has failed again." },
         {
           type: "create",
           location: { type: "unit", unitId: "harbor-view-3b" },
@@ -280,6 +290,7 @@ describe("Intake", () => {
           urgency: "routine",
         },
       ],
+      uncertain: false,
       reasoning: "Three problems: the open heating Work Order, a new tap problem, and a lobby light.",
     };
     const luisTap: WorkOrder = {
@@ -291,6 +302,7 @@ describe("Intake", () => {
       urgency: "routine",
       status: "open",
       messageIds: ["msg-luis"],
+      raisedByTenantId: "tenant-luis",
     };
     const lobbyLight: WorkOrder = {
       id: "WO-3",
@@ -301,6 +313,7 @@ describe("Intake", () => {
       urgency: "routine",
       status: "open",
       messageIds: ["msg-luis"],
+      raisedByTenantId: "tenant-luis",
     };
 
     it("applies every operation of a multi-operation Proposal", async () => {
@@ -310,6 +323,7 @@ describe("Intake", () => {
         model: scriptedModel(luisMessage.sender.email, threeOperations),
         board,
         propertyRoster,
+        reviewQueue: new InMemoryReviewQueue(),
       });
 
       expect(result.proposal).toEqual(threeOperations);
@@ -324,8 +338,9 @@ describe("Intake", () => {
       expect(await board.listWorkOrders()).toEqual([updatedHeating, luisTap, lobbyLight]);
     });
 
-    it("merges a Common Area report from a different Unit into the same Work Order", async () => {
+    it("proposes merging a Common Area report from a different Tenant, and merges it once a Coordinator approves", async () => {
       const board = new FakeBoard([luisHeating, luisTap, lobbyLight]);
+      const reviewQueue = new InMemoryReviewQueue();
       const mayaMessage: Message = {
         id: "msg-maya-lobby",
         sender: { email: "maya.okafor@example.com", name: "Maya Okafor" },
@@ -338,19 +353,32 @@ describe("Intake", () => {
           toolCallTurn("call-2", "searchOpenWorkOrders", { commonAreaId: "harbor-view-lobby" }),
           toolCallTurn("call-3", "submitProposal", {
             classification: "maintenance",
-            operations: [{ type: "attach", workOrderId: "WO-3", information: "Another Tenant reports it is pitch dark." }],
+            operations: [
+              {
+                type: "attach",
+                workOrderId: "WO-3",
+                matchType: "cross-tenant",
+                information: "Another Tenant reports it is pitch dark.",
+              },
+            ],
+            uncertain: false,
             reasoning: "Same lobby light already reported from Unit 3B.",
           }),
         ],
       });
 
-      const result = await runIntake(mayaMessage, { model, board, propertyRoster });
+      const result = await runIntake(mayaMessage, { model, board, propertyRoster, reviewQueue });
 
       const search = result.trace.steps.find(
         (step) => step.type === "tool-call" && step.toolName === "searchOpenWorkOrders",
       );
       expect(search).toMatchObject({ output: [lobbyLight] });
-      expect(result.createdWorkOrders).toEqual([]);
+      // Luis raised the lobby Work Order, so Maya's match crosses Tenants and waits for a Coordinator.
+      expect(result.routing).toMatchObject({ outcome: "review", rules: ["cross-tenant-match"] });
+      expect(await board.listWorkOrders()).toEqual([luisHeating, luisTap, lobbyLight]);
+
+      await approveProposal(result.reviewQueueEntry!.id, { board, propertyRoster, reviewQueue });
+
       const workOrders = await board.listWorkOrders();
       expect(workOrders).toHaveLength(3);
       expect(workOrders[2]).toMatchObject({
@@ -366,12 +394,12 @@ describe("Intake", () => {
         ...threeOperations,
         operations: [
           threeOperations.operations[1]!,
-          { type: "attach", workOrderId: "WO-99", information: "Not on the Board." },
+          { type: "attach", workOrderId: "WO-99", matchType: "same-tenant", information: "Not on the Board." },
         ],
       };
 
       await expect(
-        runIntake(luisMessage, { model: scriptedModel(luisMessage.sender.email, proposal), board, propertyRoster }),
+        runIntake(luisMessage, { model: scriptedModel(luisMessage.sender.email, proposal), board, propertyRoster, reviewQueue: new InMemoryReviewQueue() }),
       ).rejects.toBeInstanceOf(WorkOrderNotFoundError);
       expect(await board.listWorkOrders()).toEqual([luisHeating]);
     });

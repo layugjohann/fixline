@@ -2,7 +2,7 @@
  * The golden dataset: written before tuning the agent to pass it, so it defines
  * quality up front. Synthetic data only (ADR 0002).
  */
-import type { WorkOrder, WorkOrderLocation } from "@/domain";
+import type { ReviewRule, WorkOrder, WorkOrderLocation } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { parseScenarios } from "./scenario";
 
@@ -12,6 +12,13 @@ const PRIYA = { email: "priya.nair@example.com", name: "Priya Nair" }; // Quay C
 
 const unit = (unitId: string): WorkOrderLocation => ({ type: "unit", unitId });
 const commonArea = (commonAreaId: string): WorkOrderLocation => ({ type: "common-area", commonAreaId });
+
+/** Expected routing: applied without a Coordinator. */
+const AUTO_APPLY = { outcome: "auto-apply" } as const;
+/** Expected routing: an emergency, applied immediately and flagged for a Coordinator. */
+const APPLY_AND_FLAG = { outcome: "apply-and-flag", rules: ["emergency"] } as const;
+/** Expected routing: sent to the Review Queue by the given rule(s). */
+const review = (...rules: ReviewRule[]) => ({ outcome: "review" as const, rules });
 
 /** An unrelated open Work Order, so scenarios don't all start from an empty Board. */
 const existingWorkOrders: WorkOrder[] = [
@@ -37,6 +44,7 @@ const mayaKitchenTap: WorkOrder = {
   urgency: "urgent",
   status: "open",
   messageIds: ["msg-seed-2"],
+  raisedByTenantId: "tenant-maya",
 };
 
 /** Luis's broken heating, reported last week and still open. */
@@ -49,6 +57,7 @@ const luisHeating: WorkOrder = {
   urgency: "urgent",
   status: "open",
   messageIds: ["msg-seed-3"],
+  raisedByTenantId: "tenant-luis",
 };
 
 /** Priya's fridge, repaired and closed last month. */
@@ -61,6 +70,7 @@ const priyaFridgeClosed: WorkOrder = {
   urgency: "urgent",
   status: "closed",
   messageIds: ["msg-seed-4"],
+  raisedByTenantId: "tenant-priya",
 };
 
 /** A leaking washing machine in Harbor View's laundry room, reported by Luis (3B). */
@@ -73,6 +83,21 @@ const laundryMachineLeak: WorkOrder = {
   urgency: "urgent",
   status: "open",
   messageIds: ["msg-seed-5"],
+  raisedByTenantId: "tenant-luis",
+};
+
+/** A leak through Sam's (1A) bathroom ceiling, from the Unit above (2A). */
+const samCeilingLeak: WorkOrder = {
+  id: "WO-6",
+  location: unit("harbor-view-1a"),
+  title: "Water leaking through bathroom ceiling",
+  description:
+    "Water is dripping through the bathroom ceiling and there's a brown stain spreading around the light fitting. Probably coming from the flat above.",
+  trade: "plumbing",
+  urgency: "urgent",
+  status: "open",
+  messageIds: ["msg-seed-6"],
+  raisedByTenantId: "tenant-sam",
 };
 
 export const goldenScenarios = parseScenarios([
@@ -89,7 +114,7 @@ export const goldenScenarios = parseScenarios([
       receivedAt: "2026-11-02T08:30:00Z",
       body: "Hi there, quick question: when is rent due this month, and can I pay by bank transfer instead of the portal? Thanks!",
     },
-    expected: { classification: "not-maintenance", workOrders: [] },
+    expected: { classification: "not-maintenance", workOrders: [], routing: AUTO_APPLY },
   },
   {
     id: "not-maintenance-thank-you",
@@ -103,7 +128,7 @@ export const goldenScenarios = parseScenarios([
       receivedAt: "2026-11-03T17:05:00Z",
       body: "Just wanted to say thanks to whoever fixed the bathroom tap on Tuesday. It's working perfectly now, really appreciate the quick turnaround.",
     },
-    expected: { classification: "not-maintenance", workOrders: [] },
+    expected: { classification: "not-maintenance", workOrders: [], routing: AUTO_APPLY },
   },
   {
     id: "not-maintenance-noise-complaint",
@@ -117,7 +142,7 @@ export const goldenScenarios = parseScenarios([
       receivedAt: "2026-11-04T23:40:00Z",
       body: "The people upstairs are playing loud music again and it's nearly midnight. This is the third time this week. Can someone please talk to them?",
     },
-    expected: { classification: "not-maintenance", workOrders: [] },
+    expected: { classification: "not-maintenance", workOrders: [], routing: AUTO_APPLY },
   },
   {
     id: "not-maintenance-spam-unknown-sender",
@@ -131,7 +156,7 @@ export const goldenScenarios = parseScenarios([
       receivedAt: "2026-11-05T06:00:00Z",
       body: "Boost your property listings to page 1 of Google in 30 days! Reply YES for a free audit. Limited spots available.",
     },
-    expected: { classification: "not-maintenance", workOrders: [] },
+    expected: { classification: "not-maintenance", workOrders: [], routing: review("unknown-sender") },
   },
 
   // --- Routine --------------------------------------------------------------
@@ -150,6 +175,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-3b"), trade: "carpentry", urgency: "routine" }],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -167,6 +193,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("quay-court-101"), trade: ["electrical", "general"], urgency: "routine" }],
+      routing: AUTO_APPLY,
     },
   },
 
@@ -186,6 +213,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("quay-court-101"), trade: "appliance", urgency: "urgent" }],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -203,6 +231,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-2a"), trade: "plumbing", urgency: "urgent" }],
+      routing: AUTO_APPLY,
     },
   },
 
@@ -222,6 +251,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("quay-court-101"), trade: "plumbing", urgency: "emergency" }],
+      routing: APPLY_AND_FLAG,
     },
   },
   {
@@ -239,6 +269,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-3b"), trade: "electrical", urgency: "emergency" }],
+      routing: APPLY_AND_FLAG,
     },
   },
   {
@@ -256,6 +287,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-2a"), trade: "locksmith", urgency: "emergency" }],
+      routing: APPLY_AND_FLAG,
     },
   },
 
@@ -275,6 +307,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ type: "attach", workOrderId: "WO-2" }],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -292,6 +325,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ type: "attach", workOrderId: "WO-3" }],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -309,6 +343,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ type: "attach", workOrderId: "WO-2" }],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -326,6 +361,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-2a"), trade: "plumbing", urgency: "routine" }],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -343,6 +379,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-3b"), trade: "plumbing", urgency: "urgent" }],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -360,6 +397,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("quay-court-101"), trade: "appliance", urgency: "urgent" }],
+      routing: AUTO_APPLY,
     },
   },
 
@@ -382,6 +420,7 @@ export const goldenScenarios = parseScenarios([
         { type: "attach", workOrderId: "WO-3" },
         { location: unit("harbor-view-3b"), trade: "plumbing", urgency: "routine" },
       ],
+      routing: AUTO_APPLY,
     },
   },
   {
@@ -409,6 +448,7 @@ export const goldenScenarios = parseScenarios([
         { location: unit("quay-court-101"), trade: ["electrical", "hvac"], urgency: "routine" },
         { location: commonArea("quay-court-bike-store"), trade: ["electrical", "general"], urgency: "routine" },
       ],
+      routing: AUTO_APPLY,
     },
   },
 
@@ -428,12 +468,14 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: commonArea("harbor-view-stairwell"), trade: ["electrical", "general"], urgency: "routine" }],
+      routing: AUTO_APPLY,
     },
   },
   {
     id: "common-area-merge-across-units",
     description:
-      "A Tenant in 2A reports the laundry room leak already raised from 3B: it attaches to the Common Area Work Order.",
+      "A Tenant in 2A reports the laundry room leak already raised from 3B: it attaches to the Common Area Work Order, " +
+      "and goes to review because a different Tenant raised it.",
     tags: ["common-area", "match", "duplicate"],
     board: [...existingWorkOrders, mayaKitchenTap, laundryMachineLeak],
     propertyRoster,
@@ -446,6 +488,71 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ type: "attach", workOrderId: "WO-5" }],
+      routing: review("cross-tenant-match"),
+    },
+  },
+  // --- Review routing -----------------------------------------------------------
+  {
+    id: "review-cross-tenant-ceiling-leak",
+    description:
+      "The Tenant above (2A) writes about the ceiling leak the Tenant below (1A) already reported: a match to another Tenant's Work Order, sent for review.",
+    tags: ["review", "match", "cross-tenant"],
+    board: [...existingWorkOrders, mayaKitchenTap, samCeilingLeak],
+    propertyRoster,
+    message: {
+      id: "msg-ceiling-leak-upstairs",
+      sender: MAYA,
+      receivedAt: "2026-11-16T13:05:00Z",
+      body:
+        "Hi, Sam from 1A downstairs knocked on my door to say water is coming through his bathroom ceiling, apparently from my flat. " +
+        "I've had a look and can't see anything leaking in my bathroom, but I'm home all day tomorrow if the plumber needs to get in to check from my side.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ type: "attach", workOrderId: "WO-6" }],
+      routing: review("cross-tenant-match"),
+    },
+  },
+  {
+    id: "review-unknown-sender",
+    description:
+      "A Sender not in the Property Roster reports a problem in a Unit they name: handled normally, but sent for review.",
+    tags: ["review", "unknown-sender"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-unknown-sender-towel-rail",
+      sender: { email: "m.okafor.home@example.org", name: "Maya O." },
+      receivedAt: "2026-11-16T15:30:00Z",
+      body:
+        "Hi, writing from my personal email. I'm in 2A at Harbor View Apartments. The towel rail in the bathroom has come " +
+        "loose from the wall, one of the screws has pulled out. No rush, whenever someone is around.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ location: unit("harbor-view-2a"), trade: ["carpentry", "general"], urgency: "routine" }],
+      routing: review("unknown-sender"),
+    },
+  },
+  {
+    id: "review-uncertain-message",
+    description:
+      "A vague report of a knocking noise that might be the pipes or the neighbours: the agent should flag it uncertain so it goes to review.",
+    tags: ["review", "uncertain"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-knocking-noise",
+      sender: LUIS,
+      receivedAt: "2026-11-16T22:50:00Z",
+      body:
+        "There's a knocking noise somewhere in the flat at night, a dull thud every few minutes. Could be the pipes, " +
+        "could be the neighbours, honestly I can't tell where it's coming from. Not an emergency but it's keeping me up.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ location: unit("harbor-view-3b"), trade: ["plumbing", "general"], urgency: "routine" }],
+      routing: review("uncertain"),
     },
   },
 ]);

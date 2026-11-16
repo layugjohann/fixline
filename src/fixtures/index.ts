@@ -41,6 +41,12 @@ export const propertyRoster: PropertyRoster = PropertyRosterSchema.parse({
       unitId: "harbor-view-2a",
     },
     {
+      id: "tenant-sam",
+      name: "Sam Whitfield",
+      email: "sam.whitfield@example.com",
+      unitId: "harbor-view-1a",
+    },
+    {
       id: "tenant-luis",
       name: "Luis Romero",
       email: "luis.romero@example.com",
@@ -64,3 +70,25 @@ export const tracerMessage: Message = MessageSchema.parse({
     "Hi, the kitchen sink tap in my flat has been dripping constantly since the weekend " +
     "and now there's a small puddle under the cabinet every morning. Could someone take a look? Thanks, Maya",
 });
+
+/**
+ * Example Messages the page can send through Intake, one per routing outcome
+ * a live model should reach: auto-apply, review (unknown Sender), and an emergency.
+ */
+export const exampleMessages: Message[] = [
+  tracerMessage,
+  MessageSchema.parse({
+    id: "msg-example-unknown-sender",
+    sender: { email: "m.okafor.home@example.org", name: "Maya O." },
+    receivedAt: "2026-11-15T10:30:00Z",
+    body:
+      "Hi, writing from my personal email. I'm in 2A at Harbor View Apartments. The towel rail in the bathroom " +
+      "has come loose from the wall, one of the screws has pulled out. No rush, whenever someone is around.",
+  }),
+  MessageSchema.parse({
+    id: "msg-example-emergency",
+    sender: { email: "priya.nair@example.com", name: "Priya Nair" },
+    receivedAt: "2026-11-15T22:05:00Z",
+    body: "URGENT the pipe under my kitchen sink has burst and water is pouring onto the floor. Please send someone now!",
+  }),
+];

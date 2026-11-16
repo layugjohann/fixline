@@ -11,8 +11,14 @@ export interface AppliedChanges {
  * Applies an approved Proposal to the Board. The only Intake part that writes.
  * Every operation is applied, in order. Attach targets are checked before
  * anything is written, so a missing Work Order can't leave the Board half-changed.
+ * New Work Orders record the Tenant who raised them (none for an unknown Sender).
  */
-export async function applyProposal(proposal: Proposal, message: Message, board: Board): Promise<AppliedChanges> {
+export async function applyProposal(
+  proposal: Proposal,
+  message: Message,
+  board: Board,
+  raisedByTenantId: string | undefined,
+): Promise<AppliedChanges> {
   for (const operation of proposal.operations) {
     if (operation.type === "attach" && !(await board.getWorkOrder(operation.workOrderId))) {
       throw new WorkOrderNotFoundError(operation.workOrderId);
@@ -30,6 +36,7 @@ export async function applyProposal(proposal: Proposal, message: Message, board:
             trade: operation.trade,
             urgency: operation.urgency,
             messageIds: [message.id],
+            ...(raisedByTenantId === undefined ? {} : { raisedByTenantId }),
           }),
         );
         break;

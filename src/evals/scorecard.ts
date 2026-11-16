@@ -1,4 +1,4 @@
-import type { Proposal } from "@/domain";
+import type { Proposal, RoutingDecision } from "@/domain";
 import { DIMENSIONS, type Dimension, type Grade } from "./graders";
 
 /** How one scenario went. "error" means the run broke for a non-agent reason (such as a rate limit) and wasn't graded. */
@@ -9,6 +9,7 @@ export interface ScenarioResult {
   status: "pass" | "fail" | "error";
   grades: Grade[];
   proposal?: Proposal;
+  routing?: RoutingDecision;
   error?: string;
 }
 

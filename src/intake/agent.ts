@@ -42,13 +42,18 @@ Steps:
    - If a problem is the same as an open Work Order (a repeat report, a follow-up, an angry chaser
      such as "still broken!!", or another Tenant reporting the same Common Area problem), use an
      "attach" operation with that workOrderId and the new information the Message adds. Do not
-     create a duplicate.
+     create a duplicate. Set its matchType: "same-tenant" if the Work Order's raisedByTenantId is
+     the Sender's own Tenant id, otherwise "cross-tenant" (for example, the Tenant upstairs
+     reporting the leak coming through the ceiling of the Unit below).
    - Otherwise use a "create" operation with its location: { "type": "unit", "unitId": ... } for the
      Sender's Unit, or { "type": "common-area", "commonAreaId": ... } for a Common Area. A similar
      problem in a different Unit, or a different problem in the same Unit (another fixture, another
      room), is a new Work Order.
    - Never attach to a closed Work Order; if a closed problem has come back, create a new one.
    - Never merge two different problems into one operation.
+   - Set "uncertain" to true if you are unsure about any part of the Proposal: what the problem
+     is, where it is, whether it is the same problem as an open Work Order, or its Urgency. A
+     Coordinator will check it. Otherwise set it to false.
 
 Urgency definitions:
 - emergency: risk to safety or property, must be addressed the same day.

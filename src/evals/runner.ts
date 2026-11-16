@@ -4,6 +4,7 @@ import type { LanguageModel } from "ai";
 import { FakeBoard } from "@/board";
 import type { Trace } from "@/domain";
 import { NoProposalError, runIntake } from "@/intake";
+import { InMemoryReviewQueue } from "@/review-queue";
 import { failAll, gradeProposal, type Grade } from "./graders";
 import type { GoldenScenario } from "./scenario";
 import { buildScorecard, type Scorecard, type ScenarioResult } from "./scorecard";
@@ -21,7 +22,7 @@ export interface EvalRun {
   traces: Record<string, Trace>;
 }
 
-/** Run every scenario through Intake against its own fresh fake Board, then grade it. */
+/** Run every scenario through Intake against its own fresh fake Board and Review Queue, then grade it. */
 export async function runEvals(scenarios: readonly GoldenScenario[], options: EvalOptions): Promise<EvalRun> {
   const startedAt = new Date().toISOString();
   const results: ScenarioResult[] = [];
@@ -58,9 +59,13 @@ async function runScenario(
       model,
       board: new FakeBoard(scenario.board),
       propertyRoster: scenario.propertyRoster,
+      reviewQueue: new InMemoryReviewQueue(),
     });
-    const grades = gradeProposal(intake.proposal, scenario.expected);
-    return { result: { ...base, ...outcome(grades), proposal: intake.proposal }, trace: intake.trace };
+    const grades = gradeProposal(intake.proposal, intake.routing, scenario.expected);
+    return {
+      result: { ...base, ...outcome(grades), proposal: intake.proposal, routing: intake.routing },
+      trace: intake.trace,
+    };
   } catch (error) {
     if (error instanceof NoProposalError) {
       // The agent failed: that is a graded failure, with the steps it took kept for diagnosis.
