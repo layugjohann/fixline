@@ -4,7 +4,7 @@
 
 **Blocked by:** 02, 06
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/13
 
 - [ ] A first visit seeds the sandbox from fixtures

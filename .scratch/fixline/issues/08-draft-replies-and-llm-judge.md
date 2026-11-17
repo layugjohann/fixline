@@ -4,7 +4,7 @@
 
 **Blocked by:** 06
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/12
 
 - [ ] The Proposal can include Draft Replies

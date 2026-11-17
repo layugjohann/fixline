@@ -4,7 +4,7 @@
 
 **Blocked by:** 06
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/11
 
 - [ ] Schema and referential validation reject invalid Proposals, and the reason appears in the trace

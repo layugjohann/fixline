@@ -9,9 +9,9 @@
   "effort": "medium",
   "sandbox": "native",
   "pullRequest": true,
+  "stack": "run",
   "bodyWriter": {
     "model": "claude-sonnet-5-5",
-    "effort": "low",
-    "stack": "run"
+    "effort": "low"
   }
 }
