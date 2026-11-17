@@ -4,13 +4,21 @@ import path from "node:path";
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, describe, expect, it } from "vitest";
-import { TraceSchema, type Proposal, type ProposalOperation } from "@/domain";
+import { DRAFT_REPLY_PURPOSES, ROUTING_OUTCOMES, TraceSchema, type Proposal, type ProposalOperation } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import { DRAFT_REPLY_RUBRIC } from "./draft-reply-rubric";
-import { goldenScenarios } from "./golden-scenarios";
+import { DIMENSIONS } from "./graders";
+import { SMOKE_TAG, goldenScenarios } from "./golden-scenarios";
 import { runEvals } from "./runner";
 import { parseScenarios, type GoldenScenario } from "./scenario";
-import { formatScorecard } from "./scorecard";
+import {
+  README_SCORECARD_END,
+  README_SCORECARD_START,
+  ScorecardSummarySchema,
+  embedInReadme,
+  formatComparisonMarkdown,
+  formatScorecard,
+} from "./scorecard";
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
@@ -101,8 +109,9 @@ afterEach(async () => {
 });
 
 describe("golden dataset", () => {
-  it("has about ten scenarios covering non-maintenance and every Urgency", () => {
-    expect(goldenScenarios.length).toBeGreaterThanOrEqual(10);
+  it("has 60 to 100 scenarios covering non-maintenance and every Urgency", () => {
+    expect(goldenScenarios.length).toBeGreaterThanOrEqual(60);
+    expect(goldenScenarios.length).toBeLessThanOrEqual(100);
     const urgencies = new Set(
       goldenScenarios.flatMap((s) => s.expected.workOrders.flatMap((w) => (w.type === "create" ? [w.urgency] : []))),
     );
@@ -169,7 +178,16 @@ describe("prompt-injection scenarios", () => {
     const realProblems = injections.filter((s) => s.expected.workOrders.length > 0);
     expect(realProblems.length).toBeGreaterThanOrEqual(4);
     expect(new Set(realProblems.flatMap((s) => s.expected.workOrders.flatMap((w) => (w.type === "create" ? [w.urgency] : [])))))
-      .toEqual(new Set(["emergency", "routine"]));
+      .toEqual(new Set(["emergency", "urgent", "routine"]));
+  });
+
+  it("combines injection with matching, splitting, multi-problem Messages and review", () => {
+    expect(injections.some((s) => s.expected.workOrders.some((w) => w.type === "attach"))).toBe(true);
+    expect(injections.some((s) => s.expected.routing.outcome === "split")).toBe(true);
+    expect(injections.some((s) => s.expected.workOrders.length > 1)).toBe(true);
+    expect(injections.some((s) => s.expected.routing.rules.includes("cross-tenant-match"))).toBe(true);
+    expect(injections.some((s) => s.expected.routing.rules.includes("unknown-sender"))).toBe(true);
+    expect(injections.some((s) => s.expected.draftReplies.length > 0)).toBe(true);
   });
 
   it("rejects an injected demand the expected Proposal already satisfies", () => {
@@ -240,8 +258,27 @@ describe("golden dataset review routing", () => {
   });
 });
 
+describe("CI smoke subset", () => {
+  const smoke = goldenScenarios.filter((s) => s.tags.includes(SMOKE_TAG));
+
+  it("is small enough for the free tier, and reaches every routing outcome", () => {
+    expect(smoke.length).toBeGreaterThanOrEqual(5);
+    expect(smoke.length).toBeLessThanOrEqual(12);
+    expect(new Set(smoke.map((s) => s.expected.routing.outcome))).toEqual(new Set(ROUTING_OUTCOMES));
+  });
+
+  it("grades every dimension, so a regression in any of them fails CI", async () => {
+    const proposals = Object.fromEntries(smoke.map((s) => [s.message.id, perfectProposal(s)]));
+    const { scorecard } = await runEvals(smoke, { model: scriptedModel(proposals), judge: scriptedJudge() });
+    expect(scorecard.dimensions.map((d) => d.dimension)).toEqual([...DIMENSIONS]);
+    for (const dimension of scorecard.dimensions) {
+      expect(dimension.graded, dimension.dimension).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("eval runner", () => {
-  it("passes every dimension when the agent submits the expected Proposals", async () => {
+  it("grades and passes every dimension when the agent submits the expected Proposals", async () => {
     const proposals = Object.fromEntries(goldenScenarios.map((s) => [s.message.id, perfectProposal(s)]));
 
     const { scorecard } = await runEvals(goldenScenarios, { model: scriptedModel(proposals), judge: scriptedJudge() });
@@ -357,6 +394,20 @@ describe("eval runner", () => {
     expect(trace).toEqual(traces["urgent-fridge-not-cooling"]);
     expect(trace.messageId).toBe("msg-fridge");
     expect(trace.steps).toContainEqual({ type: "proposal", proposal: proposals["msg-fridge"] });
+  });
+
+  it("writes a Markdown scorecard the README can embed", async () => {
+    outputDir = await mkdtemp(path.join(tmpdir(), "fixline-evals-"));
+    const scenarios = [scenario("urgent-fridge-not-cooling"), scenario("routine-blown-bulb")];
+    const proposals = Object.fromEntries(scenarios.map((s) => [s.message.id, perfectProposal(s)]));
+
+    await runEvals(scenarios, { model: scriptedModel(proposals), modelName: "groq:scripted", outputDir });
+
+    const markdown = await readFile(path.join(outputDir, "scorecard.md"), "utf8");
+    expect(markdown).toContain("| Dimension | `groq:scripted` |");
+    expect(markdown).toContain("| **Scenarios passed** | **100% (2/2)** |");
+    expect(markdown).toContain("| Urgency | 100% (2/2) |");
+    expect(markdown).toContain("| Prompt-injection resistance | n/a |");
   });
 
   it("grades a run where the agent never submits a Proposal as a failure on every dimension", async () => {
@@ -644,6 +695,58 @@ function providerError(statusCode: number, body: string, responseHeaders?: Recor
   });
 }
 
+describe("cross-model scorecard", () => {
+  async function run(modelName: string, proposals: Record<string, Proposal>, scenarios: GoldenScenario[]) {
+    const { scorecard } = await runEvals(scenarios, { model: scriptedModel(proposals), modelName });
+    // Compared runs are read back from scorecard.json.
+    return ScorecardSummarySchema.parse(JSON.parse(JSON.stringify(scorecard)));
+  }
+
+  it("puts each model in its own column, dimension by dimension", async () => {
+    const scenarios = [scenario("emergency-burst-pipe"), scenario("not-maintenance-rent-question")];
+    const perfect = Object.fromEntries(scenarios.map((s) => [s.message.id, perfectProposal(s)]));
+    const wrongUrgency = { ...perfect, "msg-burst-pipe": perfectProposal(scenario("emergency-burst-pipe")) };
+    const op = wrongUrgency["msg-burst-pipe"]!.operations[0]!;
+    if (op.type !== "create") throw new Error("Expected a create");
+    op.urgency = "urgent";
+
+    const table = formatComparisonMarkdown([
+      await run("groq:small", wrongUrgency, scenarios),
+      await run("claude:frontier", perfect, scenarios),
+    ]);
+
+    expect(table.split("\n").slice(0, 3)).toEqual([
+      "| Dimension | `groq:small` | `claude:frontier` |",
+      "| --- | ---: | ---: |",
+      "| **Scenarios passed** | **50% (1/2)** | **100% (2/2)** |",
+    ]);
+    expect(table).toContain("| Urgency | 0% (0/1) | 100% (1/1) |");
+    expect(table).toContain("| Review routing | 50% (1/2) | 100% (2/2) |");
+    expect(table).toContain("| Classification (maintenance or not) | 100% (2/2) | 100% (2/2) |");
+  });
+
+  it("counts rate-limited scenarios as not graded rather than failed", async () => {
+    const table = formatComparisonMarkdown([
+      {
+        model: "gemini:free",
+        startedAt: "2026-11-17T00:00:00Z",
+        totals: { scenarios: 1, passed: 0, failed: 0, errored: 0, notRun: 1 },
+        dimensions: DIMENSIONS.map((dimension) => ({ dimension, passed: 0, graded: 0, score: null })),
+      },
+    ]);
+    expect(table).toContain("| **Scenarios passed** | **n/a** |");
+    expect(table).toContain("| Not graded (rate limit or error) | 1 |");
+  });
+
+  it("replaces only the scorecard block in the README", () => {
+    const readme = `# Fixline\n\n${README_SCORECARD_START}\nold table\n${README_SCORECARD_END}\n\nMore.\n`;
+    expect(embedInReadme(readme, "| new |")).toBe(
+      `# Fixline\n\n${README_SCORECARD_START}\n| new |\n${README_SCORECARD_END}\n\nMore.\n`,
+    );
+    expect(() => embedInReadme("# No markers", "| new |")).toThrow("scorecard:start");
+  });
+});
+
 describe("Draft Replies", () => {
   it("covers a missing Unit, a Unit mismatch and a confirmation-worthy emergency, each routed to review", () => {
     const purposes = (id: string) => scenario(id).expected.draftReplies.map((reply) => reply.purpose);
@@ -672,11 +775,12 @@ describe("Draft Replies", () => {
     });
   });
 
-  it("expects no Draft Reply in any other scenario", () => {
+  it("expects a Draft Reply exactly in the scenarios tagged draft-reply, for every purpose", () => {
     const withReplies = goldenScenarios.filter((s) => s.expected.draftReplies.length > 0).map((s) => s.id);
-    expect(withReplies.sort()).toEqual(
-      ["draft-reply-emergency-confirmation", "draft-reply-missing-unit", "draft-reply-unit-mismatch"].sort(),
-    );
+    const tagged = goldenScenarios.filter((s) => s.tags.includes("draft-reply")).map((s) => s.id);
+    expect(withReplies.sort()).toEqual(tagged.sort());
+    const purposes = new Set(goldenScenarios.flatMap((s) => s.expected.draftReplies.map((reply) => reply.purpose)));
+    expect(purposes).toEqual(new Set(DRAFT_REPLY_PURPOSES));
   });
 
   it("rejects a scenario whose routing disagrees with its expected Draft Replies", () => {

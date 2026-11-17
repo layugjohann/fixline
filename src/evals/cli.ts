@@ -4,6 +4,7 @@
  *   npm run eval                                # every golden scenario
  *   npm run eval -- --scenario emergency-burst-pipe --scenario urgent-fridge-not-cooling
  *   npm run eval -- --tag emergency --out eval-runs/my-run
+ *   npm run eval:smoke                          # the CI smoke subset (--tag smoke)
  *   npm run eval -- --model gemini
  *   npm run eval -- --model claude:claude-sonnet-5-5
  *   npm run eval -- --judge claude:claude-sonnet-5-5
@@ -77,7 +78,7 @@ async function main(): Promise<number> {
   });
 
   console.log(`\n${formatScorecard(scorecard)}\n`);
-  console.log(`Scorecard: ${path.join(outputDir, "scorecard.json")}`);
+  console.log(`Scorecard: ${path.join(outputDir, "scorecard.json")} (Markdown: scorecard.md)`);
   console.log(`Traces:    ${path.join(outputDir, "traces")}/`);
   const { totals } = scorecard;
   if (totals.failed + totals.errored > 0) return 1;

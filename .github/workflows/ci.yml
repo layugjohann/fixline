@@ -17,3 +17,50 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+
+  # The eval smoke subset (golden scenarios tagged "smoke") on the free-tier model, on every push.
+  # Kept to about ten scenarios so it fits Groq's free tier. It fails on any graded failure, which is
+  # a regression: the smoke scenarios are the ones the default model is expected to pass. A run that
+  # was rate-limited from start to finish grades nothing, so it warns instead of failing.
+  eval-smoke:
+    if: github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu-latest
+    # One smoke run at a time, so pushes in quick succession don't race for the free-tier quota.
+    concurrency:
+      group: eval-smoke
+      cancel-in-progress: false
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Eval smoke subset
+        run: |
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo "::warning::GROQ_API_KEY repository secret is not set; skipping the eval smoke subset."
+            exit 0
+          fi
+          set +e
+          npm run eval:smoke -- --model groq --out eval-runs/smoke
+          code=$?
+          set -e
+          if [ -f eval-runs/smoke/scorecard.md ]; then
+            { echo "## Eval smoke subset"; echo; cat eval-runs/smoke/scorecard.md; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$code" -eq 3 ]; then
+            echo "::warning::Every smoke scenario was stopped by the free-tier rate limit or quota; nothing was graded."
+            exit 0
+          fi
+          exit "$code"
+      - name: Keep the smoke run's scorecard and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-smoke
+          path: eval-runs/smoke
+          if-no-files-found: ignore

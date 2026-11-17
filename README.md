@@ -57,7 +57,32 @@ npm run eval -- --model claude:claude-sonnet-5-5
 npm run eval -- --tag draft-reply --judge claude:claude-sonnet-5-5   # judge Draft Replies with another model
 ```
 
-Each run writes `scorecard.json` (which records the model) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.
+The dataset has 78 scenarios: non-maintenance Messages, every Urgency, duplicates and angry follow-ups, similar-but-different problems that must not be matched, multi-problem Messages, Common Areas (including merges across Units and lookalikes in another Property), unknown Senders, Unit mismatches, cross-Tenant matches, emergencies split from the parts that need review, Draft Replies, and prompt injection on its own and combined with matching, splitting and review.
+
+Each run writes `scorecard.json` (which records the model), `scorecard.md` (the same scorecard as a Markdown table) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.
+
+#### Smoke subset in CI
+
+Ten scenarios are tagged `smoke`. Between them they reach every routing outcome and grade every dimension. On every push, GitHub Actions runs them on Groq's free tier with the `GROQ_API_KEY` repository secret (`npm run eval:smoke`, a few dozen model calls). Any failed scenario fails the build. A run stopped by the free-tier limit before anything was graded only warns, because a rate limit isn't a regression. The scorecard goes into the job summary, and the traces are uploaded as an artifact. Without the secret, the job is skipped with a warning.
+
+#### Model scorecard
+
+The cross-model comparison runs the full dataset on each model, then puts the scorecards side by side:
+
+```sh
+npm run eval -- --model groq   --out eval-runs/groq
+npm run eval -- --model gemini --out eval-runs/gemini     # Gemini's free tier is tight: expect "not run" scenarios
+npm run eval -- --model claude --out eval-runs/claude     # your own ANTHROPIC_API_KEY
+npm run eval:compare -- eval-runs/groq eval-runs/gemini eval-runs/claude --readme README.md
+```
+
+`--readme` rewrites the table between the scorecard markers below (`--out <file>` writes it to a file instead). Scenarios a model's rate limit stopped are counted as not graded, not as failures.
+
+<!-- scorecard:start -->
+_Not recorded yet: run the comparison above to fill this table._
+<!-- scorecard:end -->
+
+**Known weak spots.** _To be written from the first cross-model run: which dimensions and scenario tags each model fails, with the trace of a typical failure._
 
 ### Traces and replays
 

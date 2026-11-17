@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Proposal, RoutingDecision } from "@/domain";
 import type { RateLimitKind } from "@/models";
 import { DIMENSIONS, type Dimension, type Grade } from "./graders";
@@ -125,4 +126,98 @@ export function formatScorecard(scorecard: Scorecard): string {
     }
   }
   return lines.join("\n");
+}
+
+/** The parts of a scorecard a comparison table reads, parsed from a saved scorecard.json. */
+export const ScorecardSummarySchema = z.object({
+  model: z.string(),
+  judge: z.string().optional(),
+  startedAt: z.string(),
+  totals: z.object({
+    scenarios: z.number(),
+    passed: z.number(),
+    failed: z.number(),
+    errored: z.number(),
+    notRun: z.number(),
+  }),
+  dimensions: z.array(
+    z.object({ dimension: z.enum(DIMENSIONS), passed: z.number(), graded: z.number(), score: z.number().nullable() }),
+  ),
+});
+export type ScorecardSummary = z.infer<typeof ScorecardSummarySchema>;
+
+const DIMENSION_LABELS: Record<Dimension, string> = {
+  classification: "Classification (maintenance or not)",
+  count: "Number of Work Orders",
+  match: "Match target (attach or create)",
+  location: "Unit or Common Area",
+  trade: "Trade",
+  urgency: "Urgency",
+  injection: "Prompt-injection resistance",
+  routing: "Review routing",
+  "draft-reply": "Draft Reply drafted when needed",
+  "reply-quality": "Draft Reply quality (LLM judge)",
+};
+
+function ratio(passed: number, graded: number): string {
+  return graded === 0 ? "n/a" : `${Math.round((passed / graded) * 100)}% (${passed}/${graded})`;
+}
+
+/**
+ * A Markdown table comparing eval runs, one column per model, that the README embeds. Scenarios
+ * stopped by a rate limit or another non-agent error aren't graded, so each column says how many
+ * scenarios it actually graded.
+ */
+export function formatComparisonMarkdown(scorecards: readonly ScorecardSummary[]): string {
+  if (scorecards.length === 0) throw new Error("No scorecards to compare.");
+  const row = (cells: readonly string[]) => `| ${cells.join(" | ")} |`;
+  const lines = [
+    row(["Dimension", ...scorecards.map((s) => `\`${s.model}\``)]),
+    row(["---", ...scorecards.map(() => "---:")]),
+    row([
+      "**Scenarios passed**",
+      ...scorecards.map((s) => `**${ratio(s.totals.passed, s.totals.passed + s.totals.failed)}**`),
+    ]),
+  ];
+  for (const dimension of DIMENSIONS) {
+    lines.push(
+      row([
+        DIMENSION_LABELS[dimension],
+        ...scorecards.map((s) => {
+          const score = s.dimensions.find((d) => d.dimension === dimension);
+          return score ? ratio(score.passed, score.graded) : "n/a";
+        }),
+      ]),
+    );
+  }
+  lines.push(
+    row([
+      "Not graded (rate limit or error)",
+      ...scorecards.map((s) => String(s.totals.notRun + s.totals.errored)),
+    ]),
+  );
+  const judges = [...new Set(scorecards.flatMap((s) => (s.judge ? [s.judge] : [])))];
+  const dates = scorecards.map((s) => s.startedAt.slice(0, 10)).sort();
+  lines.push(
+    "",
+    `Golden scenarios per run: ${[...new Set(scorecards.map((s) => s.totals.scenarios))].join(", ")}. ` +
+      (judges.length > 0
+        ? `Draft Reply quality judged by ${judges.map((j) => `\`${j}\``).join(", ")}. `
+        : "No Draft Reply judge. ") +
+      `Run ${dates[0] === dates.at(-1) ? `on ${dates[0]}` : `between ${dates[0]} and ${dates.at(-1)}`}.`,
+  );
+  return lines.join("\n");
+}
+
+export const README_SCORECARD_START = "<!-- scorecard:start -->";
+export const README_SCORECARD_END = "<!-- scorecard:end -->";
+
+/** Replace the scorecard between the README's scorecard markers. */
+export function embedInReadme(readme: string, table: string): string {
+  const start = readme.indexOf(README_SCORECARD_START);
+  const end = readme.indexOf(README_SCORECARD_END);
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`The README has no ${README_SCORECARD_START} … ${README_SCORECARD_END} block to fill.`);
+  }
+  return `${readme.slice(0, start + README_SCORECARD_START.length)}\n${table}\n${readme.slice(end)}`;
 }

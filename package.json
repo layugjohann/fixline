@@ -14,6 +14,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "eval": "tsx src/evals/cli.ts",
+    "eval:smoke": "tsx src/evals/cli.ts --tag smoke",
+    "eval:compare": "tsx src/evals/compare.ts",
     "replay": "tsx src/replays/cli.ts",
     "replay:samples": "tsx src/replays/record-samples.ts",
     "test:trello": "FIXLINE_TRELLO_CONTRACT=1 vitest run src/board/trello.contract.test.ts",

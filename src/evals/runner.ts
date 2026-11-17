@@ -9,7 +9,7 @@ import { InMemoryReviewQueue } from "@/review-queue";
 import { failAll, gradeProposal, type Grade } from "./graders";
 import { judgeDraftReplies } from "./judge";
 import type { GoldenScenario } from "./scenario";
-import { buildScorecard, type Scorecard, type ScenarioResult } from "./scorecard";
+import { buildScorecard, formatComparisonMarkdown, type Scorecard, type ScenarioResult } from "./scorecard";
 
 export interface EvalOptions {
   model: LanguageModel;
@@ -65,6 +65,7 @@ export async function runEvals(scenarios: readonly GoldenScenario[], options: Ev
       await writeFile(path.join(traceDir, `${scenarioId}.json`), `${JSON.stringify(trace, null, 2)}\n`);
     }
     await writeFile(path.join(options.outputDir, "scorecard.json"), `${JSON.stringify(scorecard, null, 2)}\n`);
+    await writeFile(path.join(options.outputDir, "scorecard.md"), `${formatComparisonMarkdown([scorecard])}\n`);
   }
 
   return { scorecard, traces };
