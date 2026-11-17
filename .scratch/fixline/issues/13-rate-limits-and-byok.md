@@ -4,7 +4,8 @@
 
 **Blocked by:** 10, 12
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/14
 
 - [ ] Per-visitor and global daily caps are enforced for shared-key live runs
 - [ ] When a limit is hit, the visitor sees guidance towards replay and bring-your-own-key, not an error page
@@ -26,3 +27,5 @@ Usage: Implementer 48 input, 26,275 output, 78,373 cache creation, 1,516,931 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-13-2026-11-17T09-24-55-179Z.log`).
 
 Usage: Body writer 2 input, 1,271 output, 35,364 cache creation, 11,457 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/14
