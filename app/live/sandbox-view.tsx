@@ -15,6 +15,7 @@ import {
   type ReviewRule,
 } from "@/domain";
 import { propertyRoster } from "@/fixtures";
+import { OWN_KEY_PROVIDERS, OWN_KEY_PROVIDER_LABELS, type OwnKeyProvider } from "@/live/own-key";
 import {
   SANDBOX_STORAGE_KEY,
   loadSandbox,
@@ -26,6 +27,7 @@ import {
   serialiseSandbox,
   type Sandbox,
 } from "@/sandbox";
+import Link from "next/link";
 import { locationName } from "../location-name";
 import { TraceViewer } from "../trace-viewer";
 
@@ -41,6 +43,19 @@ const IntakeResponseSchema = BoardAndReviewQueueSchema.extend({
 });
 
 const ErrorResponseSchema = z.object({ error: z.string() });
+
+/** A shared-key live run was refused by live mode's rate limits. */
+const LiveRunLimitResponseSchema = z.object({
+  error: z.string(),
+  liveRunLimit: z.enum(["visitor", "global", "unavailable"]),
+});
+
+/** The visitor's own key, as typed into the bring-your-own-key box. Kept in memory only, never saved. */
+interface OwnKeyInput {
+  provider: OwnKeyProvider;
+  apiKey: string;
+  modelId: string;
+}
 
 /** Proposal validation rejected the agent's Proposal: the sandbox is unchanged, and the trace shows why. */
 const RejectionResponseSchema = z.object({ error: z.string(), problems: z.array(z.string()), trace: TraceSchema });
@@ -129,6 +144,11 @@ export function SandboxView() {
   const [latestRejected, setLatestRejected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set when live mode's rate limits refused a shared-key run: guidance, not an error.
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
+  // Deliberately React state only: the key is never written to storage and is gone on reload.
+  const [ownKey, setOwnKey] = useState<OwnKeyInput>({ provider: "claude", apiKey: "", modelId: "" });
+  const [lastModel, setLastModel] = useState<string | null>(null);
 
   function save(next: Sandbox) {
     setSandbox(next);
@@ -142,9 +162,15 @@ export function SandboxView() {
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError(null);
+    setLimitNotice(null);
     try {
       await action();
     } catch (caught) {
+      const limit = caught instanceof RequestError ? LiveRunLimitResponseSchema.safeParse(caught.body) : undefined;
+      if (limit?.success) {
+        setLimitNotice(limit.data.error);
+        return;
+      }
       setError(caught instanceof Error ? caught.message : "Request failed.");
     } finally {
       setBusy(false);
@@ -155,7 +181,13 @@ export function SandboxView() {
   async function process(current: Sandbox, message: Message) {
     let response: unknown;
     try {
-      response = await post("/api/intake", { message, board: current.board, reviewQueue: current.reviewQueue });
+      const apiKey = ownKey.apiKey.trim();
+      response = await post("/api/intake", {
+        message,
+        board: current.board,
+        reviewQueue: current.reviewQueue,
+        ...(apiKey ? { ownKey: { provider: ownKey.provider, apiKey, modelId: ownKey.modelId.trim() || undefined } } : {}),
+      });
     } catch (caught) {
       const rejection = caught instanceof RequestError ? RejectionResponseSchema.safeParse(caught.body) : undefined;
       if (!rejection?.success) throw caught;
@@ -163,7 +195,9 @@ export function SandboxView() {
       setLatestRejected(true);
       return;
     }
-    save(recordRun(current, { message, ...IntakeResponseSchema.parse(response) }));
+    const result = IntakeResponseSchema.extend({ model: z.string().optional() }).parse(response);
+    save(recordRun(current, { message, ...result }));
+    setLastModel(result.model ?? null);
     setShownRun(null);
     setLatestRejected(false);
   }
@@ -199,6 +233,7 @@ export function SandboxView() {
     setShownRun(null);
     setLatestRejected(false);
     setError(null);
+    setLimitNotice(null);
   }
 
   const runIndex = shownRun ?? sandbox.history.length - 1;
@@ -216,6 +251,18 @@ export function SandboxView() {
           Reset sandbox
         </button>
       </p>
+      <OwnKeyBox ownKey={ownKey} onChange={setOwnKey} disabled={busy} />
+      {limitNotice && (
+        <div role="status" style={{ border: "1px solid darkorange", padding: "0.5em 1em" }}>
+          <p>
+            <strong>Live mode limit reached.</strong> {limitNotice}
+          </p>
+          <p>
+            <Link href="/">Go to replay mode</Link> to step through recorded runs, or paste your own key in the box
+            above and process the Message again.
+          </p>
+        </div>
+      )}
       {error && (
         <p role="alert" style={{ color: "crimson" }}>
           {error}
@@ -286,6 +333,7 @@ export function SandboxView() {
               </select>
             </label>
           )}
+          {lastModel && runIndex === sandbox.history.length - 1 && <p>Run on {lastModel}.</p>}
           <p>
             Message from <strong>{senderName(shown.message)}</strong>. Routing: <strong>{shown.routing.outcome}</strong> (
             {shown.routing.reason})
@@ -366,6 +414,81 @@ export function SandboxView() {
       <h2>Property Roster</h2>
       <PropertyRosterView />
     </>
+  );
+}
+
+/**
+ * Bring your own key: a Claude or OpenAI key to run live mode on a frontier model,
+ * skipping the shared free-tier limits. The key is sent with each live request
+ * and used only for it: it isn't saved in this browser or on the server.
+ */
+function OwnKeyBox({
+  ownKey,
+  onChange,
+  disabled,
+}: {
+  ownKey: OwnKeyInput;
+  onChange: (next: OwnKeyInput) => void;
+  disabled: boolean;
+}) {
+  const using = ownKey.apiKey.trim() !== "";
+  return (
+    <details>
+      <summary>
+        Bring your own key {using ? `(using your ${OWN_KEY_PROVIDER_LABELS[ownKey.provider]} key)` : "(optional)"}
+      </summary>
+      <p>
+        Live runs use a shared free-tier model, limited per visitor and per day. Paste your own Claude or OpenAI key
+        to run a frontier model with no limit from this demo. Your key is sent only with each live request and used
+        for that request alone: it is never saved, logged, or kept in this browser after you leave the page.
+      </p>
+      <p>
+        <label>
+          Provider:{" "}
+          <select
+            value={ownKey.provider}
+            disabled={disabled}
+            onChange={(event) => {
+              const provider = OWN_KEY_PROVIDERS.find((candidate) => candidate === event.target.value);
+              if (provider) onChange({ ...ownKey, provider });
+            }}
+          >
+            {OWN_KEY_PROVIDERS.map((provider) => (
+              <option key={provider} value={provider}>
+                {OWN_KEY_PROVIDER_LABELS[provider]}
+              </option>
+            ))}
+          </select>
+        </label>{" "}
+        <label>
+          Model (optional):{" "}
+          <input
+            value={ownKey.modelId}
+            disabled={disabled}
+            placeholder="the provider's default"
+            onChange={(event) => onChange({ ...ownKey, modelId: event.target.value })}
+          />
+        </label>
+      </p>
+      <p>
+        <label>
+          API key:{" "}
+          <input
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            value={ownKey.apiKey}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...ownKey, apiKey: event.target.value })}
+          />
+        </label>{" "}
+        {using && (
+          <button type="button" disabled={disabled} onClick={() => onChange({ ...ownKey, apiKey: "" })}>
+            Forget key and use the shared model
+          </button>
+        )}
+      </p>
+    </details>
   );
 }
 

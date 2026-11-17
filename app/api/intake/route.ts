@@ -1,58 +1,8 @@
-import { z } from "zod";
-import { FakeBoard } from "@/board";
-import { MessageSchema, ReviewQueueEntrySchema, WorkOrderSchema } from "@/domain";
-import { propertyRoster } from "@/fixtures";
-import { InvalidProposalError, ModelRateLimitError, NoProposalError, runIntake } from "@/intake";
-import { ModelNotConfiguredError, configuredModel } from "@/models";
-import { InMemoryReviewQueue } from "@/review-queue";
+import { configuredLiveIntakeDependencies, createLiveIntakeHandler } from "@/live";
 
 /**
- * Stateless: the browser sends its sandbox Board and Review Queue with each
- * request, and gets them back updated. Nothing is kept on the server between requests.
+ * Live mode: runs Intake on the sandbox state the browser sends, on the shared
+ * free-tier model (rate-limited per visitor and per day) or the visitor's own key.
+ * See src/live for the handler.
  */
-const IntakeRequestSchema = z.object({
-  message: MessageSchema,
-  board: z.array(WorkOrderSchema),
-  reviewQueue: z.array(ReviewQueueEntrySchema).default([]),
-});
-
-export async function POST(request: Request): Promise<Response> {
-  const parsed = IntakeRequestSchema.safeParse(await request.json().catch(() => undefined));
-  if (!parsed.success) {
-    return Response.json({ error: "Invalid request body." }, { status: 400 });
-  }
-
-  const board = new FakeBoard(parsed.data.board);
-  const reviewQueue = new InMemoryReviewQueue(parsed.data.reviewQueue);
-  try {
-    const result = await runIntake(parsed.data.message, {
-      model: configuredModel().model,
-      board,
-      propertyRoster,
-      reviewQueue,
-    });
-    return Response.json({ ...result, board: board.snapshot(), reviewQueue: reviewQueue.snapshot() });
-  } catch (error) {
-    if (error instanceof ModelNotConfiguredError) {
-      return Response.json({ error: error.message }, { status: 503 });
-    }
-    if (error instanceof ModelRateLimitError) {
-      return Response.json(
-        { error: error.message, rateLimit: error.kind },
-        {
-          status: 429,
-          headers: error.retryAfterSeconds === undefined ? undefined : { "Retry-After": String(error.retryAfterSeconds) },
-        },
-      );
-    }
-    if (error instanceof NoProposalError) {
-      return Response.json({ error: error.message }, { status: 502 });
-    }
-    // Proposal validation rejected the agent's Proposal: the sandbox is unchanged, and the
-    // trace shows why so the rejection can be recorded and shown.
-    if (error instanceof InvalidProposalError) {
-      return Response.json({ error: error.message, problems: error.problems, trace: error.trace }, { status: 422 });
-    }
-    throw error;
-  }
-}
+export const POST = createLiveIntakeHandler(configuredLiveIntakeDependencies());

@@ -4,7 +4,7 @@
 
 > 🚧 Under construction. See the [roadmap](#roadmap).
 >
-> **Demo:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app) opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) gives you your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, an inbox of example Messages to process live, a form to send your own Message as a Tenant, and a reset button. The sandbox lives only in your browser; the server stores nothing.
+> **Demo:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app) opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) gives you your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, an inbox of example Messages to process live, a form to send your own Message as a Tenant, and a reset button. The sandbox lives only in your browser; the server stores nothing. Live runs on the shared free-tier model are limited per visitor and capped per day; paste your own Claude or OpenAI key in the sandbox to run a frontier model without those limits. Your key is used only for the request that carries it and is never stored or logged.
 
 ## The engagement
 
@@ -93,6 +93,8 @@ Models are chosen by a spec, `<provider>[:<modelId>]` (see `src/models`), all th
 | `openai` (your own key) | `OPENAI_API_KEY` | `gpt-5.5` | `OPENAI_MODEL` |
 
 Live runs use Groq, falling back to Gemini when Groq is rate-limited (if both keys are set). Set `FIXLINE_MODEL` to pin one model instead. The SDK retries rate-limited calls first; if the limit still holds, the API answers `429` with a clear message rather than a failed Proposal.
+
+In live mode, shared-model runs are also capped per visitor and per day (`FIXLINE_LIVE_RUNS_PER_VISITOR`, default 10, and `FIXLINE_LIVE_RUNS_PER_DAY`, default 100, counted per UTC day). The counts live in Upstash Redis when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set (the setup wizard adds them), and in memory otherwise. A visitor over a cap is pointed to replay mode or to bringing their own key; own-key runs skip the caps.
 
 ### Trello
 
