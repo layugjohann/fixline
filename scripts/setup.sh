@@ -304,8 +304,8 @@ if [[ "${1:-}" == "trello" ]]; then
   return
 fi
 
-TOTAL_STAGES=9
-banner "Fixline setup: keys, Vercel, deploy, Trello"
+TOTAL_STAGES=10
+banner "Fixline setup: keys, Upstash, Vercel, deploy, Trello"
 
 # ── 1 ──────────────────────────────────────────────────────────────────────
 stage "Preflight"
@@ -355,6 +355,41 @@ fi
 pause
 
 # ── 4 ──────────────────────────────────────────────────────────────────────
+stage "Upstash Redis (live-mode rate limits)"
+say "Live mode on the shared free-tier key is limited per visitor and capped per day, so the demo stays at \$0."
+say "Upstash Redis's free tier keeps those counts across Vercel's serverless instances."
+note "Without it, counts live in each server instance's memory, which is fine locally but leaky in production."
+if [[ -n "$(_existing UPSTASH_REDIS_REST_URL || true)" ]]; then
+  note "You already have an Upstash database in $ENV_FILE. Press Enter twice to keep it."
+else
+  open_url "https://console.upstash.com/redis"
+  step "Sign in, click 'Create Database', name it 'fixline', pick the region nearest your Vercel functions, Free plan."
+  step "Open the database, scroll to 'REST API', then copy UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN."
+  note "Use the full token, not the read-only one: the rate limiter writes counts."
+fi
+ask UPSTASH_REDIS_REST_URL "Paste UPSTASH_REDIS_REST_URL (https://..., Enter to skip):" || UPSTASH_REDIS_REST_URL=""
+if [[ -n "$UPSTASH_REDIS_REST_URL" ]]; then
+  ask_secret UPSTASH_REDIS_REST_TOKEN "Paste UPSTASH_REDIS_REST_TOKEN:"
+  [[ -n "$UPSTASH_REDIS_REST_TOKEN" ]] || { warn "The token is required with the URL."; exit 1; }
+  if printf 'Authorization: Bearer %s\n' "$UPSTASH_REDIS_REST_TOKEN" |
+    curl -fsS -H @- "${UPSTASH_REDIS_REST_URL%/}/ping" >/dev/null 2>&1; then
+    printf '  %s✓ connected%s to Upstash\n' "$GREEN" "$RESET"
+  else
+    warn "Upstash didn't answer with that URL and token. Re-run the wizard and paste them again."
+    exit 1
+  fi
+  write_env UPSTASH_REDIS_REST_URL "$UPSTASH_REDIS_REST_URL"
+  write_env UPSTASH_REDIS_REST_TOKEN "$UPSTASH_REDIS_REST_TOKEN"
+  note "Daily caps default to 10 live runs per visitor and 100 overall; set FIXLINE_LIVE_RUNS_PER_VISITOR"
+  note "and FIXLINE_LIVE_RUNS_PER_DAY in Vercel to change them."
+else
+  UPSTASH_REDIS_REST_TOKEN=""
+  SKIPPED+=("Upstash Redis for live-mode rate limits (re-run this wizard to add it)")
+  note "Skipped."
+fi
+pause
+
+# ── 5 ──────────────────────────────────────────────────────────────────────
 stage "Vercel: log in and link the project"
 if vercel whoami >/dev/null 2>&1; then
   note "Already logged in to Vercel as $(vercel whoami 2>/dev/null)."
@@ -376,7 +411,7 @@ fi
 [[ -f .vercel/project.json ]] || { warn "Linking didn't complete. Re-run the wizard."; exit 1; }
 pause
 
-# ── 5 ──────────────────────────────────────────────────────────────────────
+# ── 6 ──────────────────────────────────────────────────────────────────────
 stage "Vercel: production environment variables"
 say "Copying the keys into the Vercel project's Production environment."
 vercel_env() {
@@ -391,12 +426,16 @@ vercel_env() {
 }
 vercel_env GROQ_API_KEY "$GROQ_API_KEY"
 [[ -n "$GOOGLE_GENERATIVE_AI_API_KEY" ]] && vercel_env GOOGLE_GENERATIVE_AI_API_KEY "$GOOGLE_GENERATIVE_AI_API_KEY"
+if [[ -n "$UPSTASH_REDIS_REST_URL" ]]; then
+  vercel_env UPSTASH_REDIS_REST_URL "$UPSTASH_REDIS_REST_URL"
+  vercel_env UPSTASH_REDIS_REST_TOKEN "$UPSTASH_REDIS_REST_TOKEN"
+fi
 pause
 
-# ── 6 ──────────────────────────────────────────────────────────────────────
+# ── 7 ──────────────────────────────────────────────────────────────────────
 stage "Deploy to production"
 say "This builds the app on Vercel and puts the tracer page on a public URL."
-note "Anyone with the URL can press 'Run Intake', which spends your Groq free-tier quota."
+note "Anyone with the URL can run live mode, which spends your Groq free-tier quota within the daily caps."
 if confirm "Deploy to production now?"; then
   DEPLOY_URL=$(vercel deploy --prod) || { warn "Deploy failed. See the output above."; exit 1; }
   printf '  %s✓ deployed%s %s\n' "$GREEN" "$RESET" "$DEPLOY_URL"
@@ -411,7 +450,7 @@ else
   PROD_URL=""
 fi
 
-# ── 7 ──────────────────────────────────────────────────────────────────────
+# ── 8 ──────────────────────────────────────────────────────────────────────
 stage "Smoke test the live page"
 if [[ -n "$PROD_URL" ]]; then
   open_url "$PROD_URL"
@@ -427,7 +466,7 @@ else
 fi
 pause
 
-# ── 8-9 ────────────────────────────────────────────────────────────────────
+# ── 9-10 ───────────────────────────────────────────────────────────────────
 if confirm "Set up the Trello integration now? (optional, for running Fixline against a real Board)"; then
   trello_stages
 else
