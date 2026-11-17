@@ -4,7 +4,7 @@ import type { LanguageModel } from "ai";
 import { FakeBoard } from "@/board";
 import type { Trace } from "@/domain";
 import { InvalidProposalError, NoProposalError, runIntake } from "@/intake";
-import { ModelRateLimitError } from "@/models";
+import { ModelRateLimitError, rejectedToolCall } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 import { failAll, gradeProposal, type Grade } from "./graders";
 import { judgeDraftReplies } from "./judge";
@@ -114,6 +114,13 @@ async function runScenario(
       // Work Order, or a broken schema): the agent failed, and the trace shows why.
       const grades = failAll(`invalid Proposal: ${error.problems.join(" ")}`);
       return { result: { ...base, ...outcome(grades) }, trace: error.trace };
+    }
+    // The provider refused the model's own tool call (a tool that doesn't exist, input that breaks
+    // the schema, no tool call at all): the model failed, just as if Intake had rejected it.
+    const rejected = rejectedToolCall(error);
+    if (rejected) {
+      const grades = failAll(`rejected tool call: ${rejected}`);
+      return { result: { ...base, ...outcome(grades) }, trace: { messageId: scenario.message.id, steps: [] } };
     }
     // A rate limit or used-up quota means the scenario never ran: it is neither passed nor failed.
     if (error instanceof ModelRateLimitError) return notRun(scenario, error);

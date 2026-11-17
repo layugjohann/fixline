@@ -113,7 +113,7 @@ Models are chosen by a spec, `<provider>[:<modelId>]` (see `src/models`), all th
 | Provider | Key | Default model | Model override |
 | --- | --- | --- | --- |
 | `groq` (default, free tier) | `GROQ_API_KEY` | `openai/gpt-oss-120b` | `GROQ_MODEL` |
-| `gemini` (fallback, free tier) | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-flash-latest` | `GEMINI_MODEL` |
+| `gemini` (fallback, free tier) | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-3.8-flash` | `GEMINI_MODEL` |
 | `claude` (your own key) | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` | `ANTHROPIC_MODEL` |
 | `openai` (your own key) | `OPENAI_API_KEY` | `gpt-5.5` | `OPENAI_MODEL` |
 

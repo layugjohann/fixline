@@ -24,7 +24,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { createModel, parseModelSpec } from "@/models";
+import { createModel, parseModelSpec, withRateLimitWait } from "@/models";
 import { goldenScenarios } from "./golden-scenarios";
 import { runEvals } from "./runner";
 import { formatScorecard } from "./scorecard";
@@ -69,10 +69,12 @@ async function main(): Promise<number> {
     `Running ${scenarios.length} scenario(s) on ${name}` +
       (judge ? `, Draft Replies judged by ${judge.name}…` : ", without a Draft Reply judge…"),
   );
+  // Free tiers refuse calls for a few seconds at a time (tokens per minute): wait them out rather
+  // than mark scenarios not run. A used-up daily quota still stops the run.
   const { scorecard } = await runEvals(scenarios, {
-    model,
+    model: withRateLimitWait(model),
     modelName: name,
-    ...(judge ? { judge: judge.model, judgeName: judge.name } : {}),
+    ...(judge ? { judge: withRateLimitWait(judge.model), judgeName: judge.name } : {}),
     outputDir,
     onScenario: (result) => console.log(`  ${result.status.toUpperCase().padEnd(7)} ${result.scenarioId}`),
   });

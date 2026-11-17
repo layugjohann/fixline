@@ -660,9 +660,9 @@ describe("eval runner", () => {
     const bulb = scenario("routine-blown-bulb");
     const model = scriptedModel({ [bulb.message.id]: perfectProposal(bulb) });
 
-    const named = await runEvals([bulb], { model, modelName: "gemini:gemini-flash-latest" });
-    expect(named.scorecard.model).toBe("gemini:gemini-flash-latest");
-    expect(formatScorecard(named.scorecard)).toContain("model gemini:gemini-flash-latest");
+    const named = await runEvals([bulb], { model, modelName: "gemini:gemini-3.8-flash" });
+    expect(named.scorecard.model).toBe("gemini:gemini-3.8-flash");
+    expect(formatScorecard(named.scorecard)).toContain("model gemini:gemini-3.8-flash");
 
     const unnamed = await runEvals([bulb], { model });
     expect(unnamed.scorecard.model).toBe(`${model.provider}:${model.modelId}`);
@@ -680,6 +680,25 @@ describe("eval runner", () => {
 
     expect(scorecard.totals).toMatchObject({ failed: 0, errored: 1, notRun: 0 });
     expect(scorecard.scenarios[0]).toMatchObject({ status: "error", grades: [] });
+  });
+
+  it.each([
+    "tool call validation failed: attempted to call tool 'lookUpCompanyProps' which was not in request.tools",
+    "tool call validation failed: parameters for tool submitProposal did not match schema: errors: [missing properties: 'reasoning']",
+    "Tool choice is required, but model did not call a tool",
+  ])("grades a tool call the provider rejected as the model's failure: %s", async (body) => {
+    const fridge = scenario("urgent-fridge-not-cooling");
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        throw providerError(400, body);
+      },
+    });
+
+    const { scorecard } = await runEvals([fridge], { model });
+
+    expect(scorecard.totals).toMatchObject({ failed: 1, errored: 0, notRun: 0 });
+    expect(scorecard.scenarios[0]?.status).toBe("fail");
+    expect(scorecard.scenarios[0]?.grades.every((grade) => grade.detail.includes("rejected tool call"))).toBe(true);
   });
 });
 
