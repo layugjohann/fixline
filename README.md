@@ -67,22 +67,43 @@ Ten scenarios are tagged `smoke`. Between them they reach every routing outcome 
 
 #### Model scorecard
 
-The cross-model comparison runs the full dataset on each model, then puts the scorecards side by side:
+Fixline costs nothing to run, so the comparison uses free-tier models only, on the 10-scenario smoke subset (a full 78-scenario run doesn't fit in a free tier's daily tokens). One fixed judge grades every model's Draft Replies, so reply quality is comparable across rows:
 
 ```sh
-npm run eval -- --model groq   --out eval-runs/groq
-npm run eval -- --model gemini --out eval-runs/gemini     # Gemini's free tier is tight: expect "not run" scenarios
-npm run eval -- --model claude --out eval-runs/claude     # your own ANTHROPIC_API_KEY
-npm run eval:compare -- eval-runs/groq eval-runs/gemini eval-runs/claude --readme README.md
+npm run eval -- --tag smoke --model groq:openai/gpt-oss-120b --judge groq:openai/gpt-oss-20b --out eval-runs/gpt-oss-120b
+npm run eval -- --tag smoke --model groq:qwen/qwen3.8-27b    --judge groq:openai/gpt-oss-20b --out eval-runs/qwen
+npm run eval:compare -- eval-runs/gpt-oss-120b eval-runs/qwen --readme README.md
 ```
 
-`--readme` rewrites the table between the scorecard markers below (`--out <file>` writes it to a file instead). Scenarios a model's rate limit stopped are counted as not graded, not as failures.
+Any other model spec works the same way, including a paid one with your own key (`--model claude`). `--readme` rewrites the table between the scorecard markers below (`--out <file>` writes it to a file instead). Scenarios a model's rate limit stopped are counted as not graded, not as failures. When the provider rejects a model's tool call (a tool that doesn't exist, input that breaks the schema, or no tool call at all), the scenario fails on every dimension, because no Proposal was made; that is why a model that rarely gets its tool calls through scores low across the board.
 
 <!-- scorecard:start -->
-_Not recorded yet: run the comparison above to fill this table._
+| Dimension | `groq:openai/gpt-oss-120b` | `groq:qwen/qwen3.8-27b` |
+| --- | ---: | ---: |
+| **Scenarios passed** | **50% (5/10)** | **10% (1/10)** |
+| Classification (maintenance or not) | 70% (7/10) | 10% (1/10) |
+| Number of Work Orders | 60% (6/10) | 10% (1/10) |
+| Match target (attach or create) | 63% (5/8) | 10% (1/10) |
+| Unit or Common Area | 50% (3/6) | 10% (1/10) |
+| Trade | 50% (3/6) | 10% (1/10) |
+| Urgency | 50% (3/6) | 10% (1/10) |
+| Prompt-injection resistance | 25% (1/4) | 10% (1/10) |
+| Review routing | 60% (6/10) | 10% (1/10) |
+| Draft Reply drafted when needed | 17% (1/6) | 0% (0/9) |
+| Draft Reply quality (LLM judge) | 25% (1/4) | 0% (0/9) |
+| Not graded (rate limit or error) | 0 | 0 |
+
+Golden scenarios per run: 10. Draft Reply quality judged by `groq:openai/gpt-oss-20b`. Run on 2026-11-18.
 <!-- scorecard:end -->
 
-**Known weak spots.** _To be written from the first cross-model run: which dimensions and scenario tags each model fails, with the trace of a typical failure._
+Gemini (`gemini-3.8-flash`, the app's fallback) is not in the table: during both attempts Google's free tier was overloaded ("This model is currently experiencing high demand"), and the retries used up its daily requests after one graded scenario. Add its row with `--model gemini --out eval-runs/gemini` once it responds.
+
+**Known weak spots.** From the runs above (traces under each run's `traces/`):
+
+- **Rejected tool calls.** Most failures happen before the model proposes anything. `qwen3.8-27b` misspells tool names (`lookUpSendeler`, `lookUpUsuario`, `searchOpenWorkorders`), leaves out required inputs (`lookUpSender` without `email`), and sends a string where `submitProposal` expects a boolean; 8 of its 9 failures are this. `gpt-oss-120b` sometimes answers in prose when a tool call is required (`not-maintenance-rent-question`, `urgent-fridge-not-cooling`, `split-unknown-sender-emergency-and-routine`). Intake gives up on the first rejected call instead of retrying the turn.
+- **Unknown Senders.** `gpt-oss-120b` fails both unknown-Sender scenarios (`qwen3.8-27b` never got past its tool calls on them, and failed them the same way in an earlier run). On `review-unknown-sender` it proposes no Work Order and drafts a missing-Unit reply instead of creating the Work Order and routing it to review.
+- **Unwanted Draft Replies on emergencies.** On `emergency-burst-pipe`, `gpt-oss-120b` drafts an emergency confirmation to the Tenant, which turns a clean apply-and-flag into a split that waits for review.
+- **Draft Replies overall.** The Draft Reply dimensions are the weakest for both models: few scenarios that need a reply get one, and the judge passes few of those that do.
 
 ### Traces and replays
 
