@@ -26,6 +26,10 @@ _Avoid_: Apartment, flat, room
 A shared space in a Property that belongs to no single Unit, such as a lobby, stairwell, or laundry room.
 _Avoid_: Shared space, communal area
 
+**Location**:
+The Unit or Common Area a Work Order is in.
+_Avoid_: Place, address, site
+
 **Property Roster**:
 The company's reference list of Properties, Units, and Tenants with their contact details.
 _Avoid_: Directory, CRM, tenant list
