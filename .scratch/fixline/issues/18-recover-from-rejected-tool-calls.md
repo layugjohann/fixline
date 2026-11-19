@@ -9,7 +9,7 @@ The rejections seen in the eval traces, all reported by Groq as HTTP 400 and rec
 
 Behaviour:
 - On a rejected tool call, run the turn again, telling the model what was rejected and why (the provider's explanation), and listing the tools that exist by their exact names. Keep the work the run had already done when that's possible; starting the Message again from the beginning is acceptable.
-- Retry at most 2 times per Message. If the last try is rejected too, the run fails as it does today, and the eval grades the scenario as failed (Issue 15).
+- Retry at most 2 times per Message. If the last try is rejected too, the eval grades the scenario as failed (Issue 15), and live mode (app/api/intake/route.ts) answers with a clear 502, "the model couldn't produce a valid Proposal", plus the trace (like the 422 for an InvalidProposalError), instead of the generic error. Today this error isn't caught there and the visitor gets a generic 500.
 - The trace records each rejected call and each retry, so a replay shows what happened.
 - Only rejected tool calls are retried. Rate limits and quotas keep their own handling (Issue 13), and other errors (a bad key, a server error) are not retried.
 - Re-run the smoke evals on `groq:openai/gpt-oss-120b` and `groq:qwen/qwen3.8-27b` (judge `groq:openai/gpt-oss-20b`), refresh the README scorecard, and update the rejected-tool-call bullet in Known weak spots. This needs real free-tier calls, so it is a step for the author if the Run's sandbox has no key.
@@ -20,6 +20,7 @@ Behaviour:
 
 - [ ] A rejected tool call (unknown tool, schema mismatch, or no tool call) is retried with the provider's explanation and the list of real tool names, at most 2 times per Message
 - [ ] A Message whose retry succeeds gets a normal Proposal and routing
+- [ ] When every try is rejected, live mode returns a 502 with a clear message and the trace, not a 500
 - [ ] Rate limits, quotas and other errors are not retried
 - [ ] Each rejected call and retry appears in the trace
 - [ ] Tests cover each kind of rejection with a mock model, using the provider messages from the Issue 15 traces
