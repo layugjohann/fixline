@@ -57,7 +57,7 @@ const PROVIDERS: Record<ModelProvider, ProviderSettings> = {
     label: "Gemini",
     keyEnv: "GOOGLE_GENERATIVE_AI_API_KEY",
     modelEnv: "GEMINI_MODEL",
-    defaultModelId: "gemini-flash-latest",
+    defaultModelId: "gemini-3.8-flash",
     create: (apiKey, modelId) => createGoogle({ apiKey })(modelId),
   },
   claude: {
@@ -138,6 +138,40 @@ export function configuredModel(env: ModelEnv = process.env): ConfiguredModel {
 }
 
 /**
+ * A model that, when a call is refused by a short-lived rate limit (not a used-up quota), waits
+ * the provider's `retry-after` (or `defaultWaitSeconds`) and makes the same call again, up to
+ * `maxWaits` times. A refused call spends no tokens, so waiting is free; for batch work such as
+ * evals on a free tier, where finishing matters more than speed.
+ */
+export function withRateLimitWait(
+  model: LanguageModelV4,
+  {
+    maxWaits = 5,
+    defaultWaitSeconds = 20,
+    sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  }: { maxWaits?: number; defaultWaitSeconds?: number; sleep?: (ms: number) => Promise<void> } = {},
+): LanguageModelV4 {
+  async function withWaits<T>(call: () => PromiseLike<T>): Promise<T> {
+    for (let waits = 0; ; waits++) {
+      try {
+        return await call();
+      } catch (error) {
+        if (waits >= maxWaits || classifyRateLimit(error) !== "rate-limit") throw error;
+        await sleep((retryAfter(error) ?? defaultWaitSeconds) * 1000);
+      }
+    }
+  }
+  return {
+    specificationVersion: "v4",
+    provider: model.provider,
+    modelId: model.modelId,
+    supportedUrls: model.supportedUrls,
+    doGenerate: (options) => withWaits(() => model.doGenerate(options)),
+    doStream: (options) => withWaits(() => model.doStream(options)),
+  };
+}
+
+/**
  * A model that calls `primary`, and calls `fallback` instead whenever `primary`
  * refuses a call with a rate-limit or quota error.
  */
@@ -191,6 +225,7 @@ export class ModelRateLimitError extends Error {
 
 const QUOTA_PATTERN = /quota|insufficient_quota|resource_exhausted|per day|daily|billing|credit balance/i;
 const RATE_LIMIT_PATTERN = /rate.?limit|too many requests/i;
+const PER_MINUTE_PATTERN = /per minute|\((?:TPM|RPM)\)/i;
 
 /** If `error` is a provider rate-limit or quota refusal (after the SDK's own retries), describe it. */
 export function toModelRateLimitError(error: unknown): ModelRateLimitError | undefined {
@@ -201,10 +236,28 @@ export function toModelRateLimitError(error: unknown): ModelRateLimitError | und
   return new ModelRateLimitError({ kind, retryAfterSeconds: retryAfter(cause), cause: error });
 }
 
+const REJECTED_TOOL_CALL_PATTERN = /tool call validation failed|did not call a tool/i;
+
+/**
+ * If the provider refused the model's own output because its tool call was invalid (a tool that
+ * doesn't exist, input that breaks the schema, or no tool call when one was required), the
+ * provider's explanation. That is the model's mistake, not an infrastructure error. Groq checks
+ * tool calls server-side and reports them this way.
+ */
+export function rejectedToolCall(error: unknown): string | undefined {
+  const cause = RetryError.isInstance(error) ? error.lastError : error;
+  if (!APICallError.isInstance(cause) || cause.statusCode !== 400) return undefined;
+  return REJECTED_TOOL_CALL_PATTERN.test(cause.message) ? cause.message : undefined;
+}
+
 function classifyRateLimit(error: unknown): RateLimitKind | undefined {
   if (!APICallError.isInstance(error)) return undefined;
   const text = `${error.message} ${error.responseBody ?? ""}`;
-  if (error.statusCode === 429) return QUOTA_PATTERN.test(text) ? "quota" : "rate-limit";
+  if (error.statusCode === 429) {
+    // A per-minute limit clears in seconds, even when the message also links to a billing page (Groq's do).
+    if (PER_MINUTE_PATTERN.test(text)) return "rate-limit";
+    return QUOTA_PATTERN.test(text) ? "quota" : "rate-limit";
+  }
   // Some providers report an exhausted allowance with another status code.
   if (error.statusCode === 402 || (error.statusCode === 403 && QUOTA_PATTERN.test(text))) return "quota";
   if (RATE_LIMIT_PATTERN.test(error.message)) return "rate-limit";

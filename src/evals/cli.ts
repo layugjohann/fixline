@@ -4,6 +4,7 @@
  *   npm run eval                                # every golden scenario
  *   npm run eval -- --scenario emergency-burst-pipe --scenario urgent-fridge-not-cooling
  *   npm run eval -- --tag emergency --out eval-runs/my-run
+ *   npm run eval:smoke                          # the CI smoke subset (--tag smoke)
  *   npm run eval -- --model gemini
  *   npm run eval -- --model claude:claude-sonnet-5-5
  *   npm run eval -- --judge claude:claude-sonnet-5-5
@@ -23,7 +24,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { createModel, parseModelSpec } from "@/models";
+import { createModel, parseModelSpec, withRateLimitWait } from "@/models";
 import { goldenScenarios } from "./golden-scenarios";
 import { runEvals } from "./runner";
 import { formatScorecard } from "./scorecard";
@@ -68,16 +69,18 @@ async function main(): Promise<number> {
     `Running ${scenarios.length} scenario(s) on ${name}` +
       (judge ? `, Draft Replies judged by ${judge.name}…` : ", without a Draft Reply judge…"),
   );
+  // Free tiers refuse calls for a few seconds at a time (tokens per minute): wait them out rather
+  // than mark scenarios not run. A used-up daily quota still stops the run.
   const { scorecard } = await runEvals(scenarios, {
-    model,
+    model: withRateLimitWait(model),
     modelName: name,
-    ...(judge ? { judge: judge.model, judgeName: judge.name } : {}),
+    ...(judge ? { judge: withRateLimitWait(judge.model), judgeName: judge.name } : {}),
     outputDir,
     onScenario: (result) => console.log(`  ${result.status.toUpperCase().padEnd(7)} ${result.scenarioId}`),
   });
 
   console.log(`\n${formatScorecard(scorecard)}\n`);
-  console.log(`Scorecard: ${path.join(outputDir, "scorecard.json")}`);
+  console.log(`Scorecard: ${path.join(outputDir, "scorecard.json")} (Markdown: scorecard.md)`);
   console.log(`Traces:    ${path.join(outputDir, "traces")}/`);
   const { totals } = scorecard;
   if (totals.failed + totals.errored > 0) return 1;

@@ -4,12 +4,12 @@ import type { LanguageModel } from "ai";
 import { FakeBoard } from "@/board";
 import type { Trace } from "@/domain";
 import { InvalidProposalError, NoProposalError, runIntake } from "@/intake";
-import { ModelRateLimitError } from "@/models";
+import { ModelRateLimitError, rejectedToolCall } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 import { failAll, gradeProposal, type Grade } from "./graders";
 import { judgeDraftReplies } from "./judge";
 import type { GoldenScenario } from "./scenario";
-import { buildScorecard, type Scorecard, type ScenarioResult } from "./scorecard";
+import { buildScorecard, formatComparisonMarkdown, type Scorecard, type ScenarioResult } from "./scorecard";
 
 export interface EvalOptions {
   model: LanguageModel;
@@ -65,6 +65,7 @@ export async function runEvals(scenarios: readonly GoldenScenario[], options: Ev
       await writeFile(path.join(traceDir, `${scenarioId}.json`), `${JSON.stringify(trace, null, 2)}\n`);
     }
     await writeFile(path.join(options.outputDir, "scorecard.json"), `${JSON.stringify(scorecard, null, 2)}\n`);
+    await writeFile(path.join(options.outputDir, "scorecard.md"), `${formatComparisonMarkdown([scorecard])}\n`);
   }
 
   return { scorecard, traces };
@@ -113,6 +114,13 @@ async function runScenario(
       // Work Order, or a broken schema): the agent failed, and the trace shows why.
       const grades = failAll(`invalid Proposal: ${error.problems.join(" ")}`);
       return { result: { ...base, ...outcome(grades) }, trace: error.trace };
+    }
+    // The provider refused the model's own tool call (a tool that doesn't exist, input that breaks
+    // the schema, no tool call at all): the model failed, just as if Intake had rejected it.
+    const rejected = rejectedToolCall(error);
+    if (rejected) {
+      const grades = failAll(`rejected tool call: ${rejected}`);
+      return { result: { ...base, ...outcome(grades) }, trace: { messageId: scenario.message.id, steps: [] } };
     }
     // A rate limit or used-up quota means the scenario never ran: it is neither passed nor failed.
     if (error instanceof ModelRateLimitError) return notRun(scenario, error);

@@ -57,7 +57,53 @@ npm run eval -- --model claude:claude-sonnet-5-5
 npm run eval -- --tag draft-reply --judge claude:claude-sonnet-5-5   # judge Draft Replies with another model
 ```
 
-Each run writes `scorecard.json` (which records the model) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.
+The dataset has 78 scenarios: non-maintenance Messages, every Urgency, duplicates and angry follow-ups, similar-but-different problems that must not be matched, multi-problem Messages, Common Areas (including merges across Units and lookalikes in another Property), unknown Senders, Unit mismatches, cross-Tenant matches, emergencies split from the parts that need review, Draft Replies, and prompt injection on its own and combined with matching, splitting and review.
+
+Each run writes `scorecard.json` (which records the model), `scorecard.md` (the same scorecard as a Markdown table) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.
+
+#### Smoke subset in CI
+
+Ten scenarios are tagged `smoke`. Between them they reach every routing outcome and grade every dimension. On every push, GitHub Actions runs them on Groq's free tier with the `GROQ_API_KEY` repository secret (`npm run eval:smoke`, a few dozen model calls). Any failed scenario fails the build. A run stopped by the free-tier limit before anything was graded only warns, because a rate limit isn't a regression. The scorecard goes into the job summary, and the traces are uploaded as an artifact. Without the secret, the job is skipped with a warning.
+
+#### Model scorecard
+
+Fixline costs nothing to run, so the comparison uses free-tier models only, on the 10-scenario smoke subset (a full 78-scenario run doesn't fit in a free tier's daily tokens). One fixed judge grades every model's Draft Replies, so reply quality is comparable across rows:
+
+```sh
+npm run eval -- --tag smoke --model groq:openai/gpt-oss-120b --judge groq:openai/gpt-oss-20b --out eval-runs/gpt-oss-120b
+npm run eval -- --tag smoke --model groq:qwen/qwen3.8-27b    --judge groq:openai/gpt-oss-20b --out eval-runs/qwen
+npm run eval:compare -- eval-runs/gpt-oss-120b eval-runs/qwen --readme README.md
+```
+
+Any other model spec works the same way, including a paid one with your own key (`--model claude`). `--readme` rewrites the table between the scorecard markers below (`--out <file>` writes it to a file instead). Scenarios a model's rate limit stopped are counted as not graded, not as failures. When the provider rejects a model's tool call (a tool that doesn't exist, input that breaks the schema, or no tool call at all), the scenario fails on every dimension, because no Proposal was made; that is why a model that rarely gets its tool calls through scores low across the board.
+
+<!-- scorecard:start -->
+| Dimension | `groq:openai/gpt-oss-120b` | `groq:qwen/qwen3.8-27b` |
+| --- | ---: | ---: |
+| **Scenarios passed** | **50% (5/10)** | **10% (1/10)** |
+| Classification (maintenance or not) | 70% (7/10) | 10% (1/10) |
+| Number of Work Orders | 60% (6/10) | 10% (1/10) |
+| Match target (attach or create) | 63% (5/8) | 10% (1/10) |
+| Unit or Common Area | 50% (3/6) | 10% (1/10) |
+| Trade | 50% (3/6) | 10% (1/10) |
+| Urgency | 50% (3/6) | 10% (1/10) |
+| Prompt-injection resistance | 25% (1/4) | 10% (1/10) |
+| Review routing | 60% (6/10) | 10% (1/10) |
+| Draft Reply drafted when needed | 17% (1/6) | 0% (0/9) |
+| Draft Reply quality (LLM judge) | 25% (1/4) | 0% (0/9) |
+| Not graded (rate limit or error) | 0 | 0 |
+
+Golden scenarios per run: 10. Draft Reply quality judged by `groq:openai/gpt-oss-20b`. Run on 2026-11-18.
+<!-- scorecard:end -->
+
+Gemini (`gemini-3.8-flash`, the app's fallback) is not in the table: during both attempts Google's free tier was overloaded ("This model is currently experiencing high demand"), and the retries used up its daily requests after one graded scenario. Add its row with `--model gemini --out eval-runs/gemini` once it responds.
+
+**Known weak spots.** From the runs above (traces under each run's `traces/`):
+
+- **Rejected tool calls.** Most failures happen before the model proposes anything. `qwen3.8-27b` misspells tool names (`lookUpSendeler`, `lookUpUsuario`, `searchOpenWorkorders`), leaves out required inputs (`lookUpSender` without `email`), and sends a string where `submitProposal` expects a boolean; 8 of its 9 failures are this. `gpt-oss-120b` sometimes answers in prose when a tool call is required (`not-maintenance-rent-question`, `urgent-fridge-not-cooling`, `split-unknown-sender-emergency-and-routine`). Intake gives up on the first rejected call instead of retrying the turn.
+- **Unknown Senders.** `gpt-oss-120b` fails both unknown-Sender scenarios (`qwen3.8-27b` never got past its tool calls on them, and failed them the same way in an earlier run). On `review-unknown-sender` it proposes no Work Order and drafts a missing-Unit reply instead of creating the Work Order and routing it to review.
+- **Unwanted Draft Replies on emergencies.** On `emergency-burst-pipe`, `gpt-oss-120b` drafts an emergency confirmation to the Tenant, which turns a clean apply-and-flag into a split that waits for review.
+- **Draft Replies overall.** The Draft Reply dimensions are the weakest for both models: few scenarios that need a reply get one, and the judge passes few of those that do.
 
 ### Traces and replays
 
@@ -88,7 +134,7 @@ Models are chosen by a spec, `<provider>[:<modelId>]` (see `src/models`), all th
 | Provider | Key | Default model | Model override |
 | --- | --- | --- | --- |
 | `groq` (default, free tier) | `GROQ_API_KEY` | `openai/gpt-oss-120b` | `GROQ_MODEL` |
-| `gemini` (fallback, free tier) | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-flash-latest` | `GEMINI_MODEL` |
+| `gemini` (fallback, free tier) | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-3.8-flash` | `GEMINI_MODEL` |
 | `claude` (your own key) | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` | `ANTHROPIC_MODEL` |
 | `openai` (your own key) | `OPENAI_API_KEY` | `gpt-5.5` | `OPENAI_MODEL` |
 

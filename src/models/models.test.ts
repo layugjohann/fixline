@@ -13,6 +13,7 @@ import {
   parseModelSpec,
   toModelRateLimitError,
   withRateLimitFallback,
+  withRateLimitWait,
 } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 
@@ -52,7 +53,7 @@ const message: Message = {
 describe("model configuration", () => {
   it.each([
     ["groq", "GROQ_API_KEY", "groq:openai/gpt-oss-120b"],
-    ["gemini", "GOOGLE_GENERATIVE_AI_API_KEY", "gemini:gemini-flash-latest"],
+    ["gemini", "GOOGLE_GENERATIVE_AI_API_KEY", "gemini:gemini-3.8-flash"],
     ["claude", "ANTHROPIC_API_KEY", "claude:claude-sonnet-5-5"],
     ["openai", "OPENAI_API_KEY", "openai:gpt-5.5"],
   ])("selects %s from one provider-agnostic config", (spec, keyEnv, name) => {
@@ -86,9 +87,9 @@ describe("model configuration", () => {
 
   it("defaults to Groq with Gemini as fallback, and pins the model named in FIXLINE_MODEL", () => {
     expect(configuredModel({ GROQ_API_KEY: "k" }).name).toBe("groq:openai/gpt-oss-120b");
-    expect(configuredModel({ GOOGLE_GENERATIVE_AI_API_KEY: "k" }).name).toBe("gemini:gemini-flash-latest");
+    expect(configuredModel({ GOOGLE_GENERATIVE_AI_API_KEY: "k" }).name).toBe("gemini:gemini-3.8-flash");
     expect(configuredModel({ GROQ_API_KEY: "k", GOOGLE_GENERATIVE_AI_API_KEY: "k" }).name).toBe(
-      "groq:openai/gpt-oss-120b (fallback gemini:gemini-flash-latest)",
+      "groq:openai/gpt-oss-120b (fallback gemini:gemini-3.8-flash)",
     );
     expect(configuredModel({ GROQ_API_KEY: "k", FIXLINE_MODEL: "claude", ANTHROPIC_API_KEY: "k" }).name).toBe(
       "claude:claude-sonnet-5-5",
@@ -112,6 +113,14 @@ describe("rate limits and quotas", () => {
       errors: [providerError(429, "Too Many Requests")],
     });
     expect(toModelRateLimitError(retried)).toBeInstanceOf(ModelRateLimitError);
+
+    // Groq's per-minute refusals link to its billing page, but they clear in seconds: not a quota.
+    const groqPerMinute =
+      "Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_x` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7000, Requested 2400. Please try again in 10.5s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing";
+    expect(toModelRateLimitError(providerError(429, groqPerMinute))?.kind).toBe("rate-limit");
+    const groqPerDay =
+      "Rate limit reached for model `openai/gpt-oss-120b` in organization `org_x` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199000, Requested 2400. Please try again in 7m12s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing";
+    expect(toModelRateLimitError(providerError(429, groqPerDay))?.kind).toBe("quota");
 
     expect(toModelRateLimitError(providerError(401, "Invalid API key"))).toBeUndefined();
     expect(toModelRateLimitError(providerError(500, "Internal error"))).toBeUndefined();
@@ -162,6 +171,46 @@ describe("rate limits and quotas", () => {
     expect(result.routing.outcome).toBe("auto-apply");
     expect(await board.listWorkOrders()).toHaveLength(1);
     expect(fallback.doGenerateCalls).toHaveLength(2);
+  });
+
+  it("waits out a per-minute rate limit and retries the same call", async () => {
+    let calls = 0;
+    const inner = new MockLanguageModelV4({
+      doGenerate: async () => {
+        calls += 1;
+        if (calls === 1) throw providerError(429, "Rate limit reached", { "retry-after": "3" });
+        return toolCallTurn("call-1", "lookUpSender", { email: message.sender.email });
+      },
+    });
+    const waits: number[] = [];
+    const model = withRateLimitWait(inner, { sleep: async (ms) => void waits.push(ms) });
+
+    await model.doGenerate({ prompt: [] });
+
+    expect(calls).toBe(2);
+    expect(waits).toEqual([3000]);
+  });
+
+  it("does not wait on a used-up quota or other errors, and gives up after maxWaits", async () => {
+    const sleep = async () => {};
+    const quota = withRateLimitWait(
+      new MockLanguageModelV4({ doGenerate: async () => { throw providerError(429, "tokens per day (TPD)"); } }),
+      { sleep },
+    );
+    await expect(quota.doGenerate({ prompt: [] })).rejects.toBeInstanceOf(APICallError);
+
+    let calls = 0;
+    const alwaysLimited = withRateLimitWait(
+      new MockLanguageModelV4({
+        doGenerate: async () => {
+          calls += 1;
+          throw providerError(429, "Rate limit reached");
+        },
+      }),
+      { sleep, maxWaits: 2 },
+    );
+    await expect(alwaysLimited.doGenerate({ prompt: [] })).rejects.toBeInstanceOf(APICallError);
+    expect(calls).toBe(3);
   });
 
   it("does not fall back on errors that aren't rate limits", async () => {
