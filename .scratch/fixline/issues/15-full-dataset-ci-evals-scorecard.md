@@ -4,7 +4,8 @@
 
 **Blocked by:** 05, 07, 08, 09, 10
 
-**Status:** ready-for-human
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/15
 
 - [x] The golden dataset has 60–100 scenarios spanning every grader dimension
 - [x] CI runs an eval smoke subset on every push using the repository secret, and fails on regression
