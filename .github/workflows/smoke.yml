@@ -1,0 +1,41 @@
+name: Browser smoke test
+
+# The one browser smoke test (e2e/), against the deployed app: after every successful
+# production deploy (Vercel reports deployments to GitHub), or by hand against any URL.
+# It makes no free-tier model call, so it needs no secrets.
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL of the deployed app"
+        required: false
+        default: "https://fixline-phi.vercel.app"
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Production')
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      FIXLINE_SMOKE_URL: ${{ github.event.inputs.url || github.event.deployment_status.environment_url || 'https://fixline-phi.vercel.app' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:smoke
+      - name: Keep the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore

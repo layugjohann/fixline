@@ -205,6 +205,7 @@
             }
           ],
           "uncertain": false,
+          "draftReplies": [],
           "reasoning": "The heating is the open Work Order WO-3, so the Message attaches to it; the dripping tap is new and routine."
         }
       },

@@ -17,3 +17,7 @@ next-env.d.ts
 
 # eval runs (traces and scorecards)
 eval-runs/
+
+# browser smoke test output
+playwright-report/
+test-results/

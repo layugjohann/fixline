@@ -117,6 +117,7 @@
             }
           ],
           "uncertain": false,
+          "draftReplies": [],
           "reasoning": "Known Tenant in Quay Court 101 reports active flooding from a burst pipe; no open Work Order matches."
         }
       },

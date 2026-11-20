@@ -134,6 +134,67 @@ const samples: Sample[] = [
     },
   },
   {
+    scenarioId: "match-duplicate-report-same-tenant",
+    title: "Duplicate: the same dripping tap, reported again",
+    turns: [
+      {
+        text: "Looking up the Sender.",
+        calls: [{ toolName: "lookUpSender", input: { email: "maya.okafor@example.com" } }],
+      },
+      {
+        text: "Maya Okafor, Harbor View 2A. She says she's writing again, so this may already be on the Board.",
+        calls: [{ toolName: "searchOpenWorkOrders", input: { unitId: "harbor-view-2a", query: "tap" } }],
+      },
+    ],
+    proposal: {
+      classification: "maintenance",
+      uncertain: false,
+      draftReplies: [],
+      operations: [
+        {
+          type: "attach",
+          workOrderId: "WO-2",
+          matchType: "same-tenant",
+          information: "Tenant reports the kitchen tap drip is getting worse; she empties a bowl under it twice a day.",
+        },
+      ],
+      reasoning: "Same Tenant, same dripping kitchen tap as the open WO-2, so the Message attaches to it instead of creating a duplicate.",
+    },
+  },
+  {
+    scenarioId: "review-cross-tenant-ceiling-leak",
+    title: "Ceiling leak: the Unit above writes about the Unit below's leak",
+    turns: [
+      {
+        calls: [{ toolName: "lookUpSender", input: { email: "maya.okafor@example.com" } }],
+      },
+      {
+        text: "Maya Okafor lives in 2A. The leak she describes is in 1A's bathroom ceiling, below her flat. Searching 1A's open Work Orders.",
+        calls: [{ toolName: "searchOpenWorkOrders", input: { unitId: "harbor-view-1a", query: "ceiling leak" } }],
+      },
+      {
+        text: "WO-6 is Sam Whitfield's ceiling leak in 1A. Reading it in full.",
+        calls: [{ toolName: "getWorkOrder", input: { workOrderId: "WO-6" } }],
+      },
+    ],
+    proposal: {
+      classification: "maintenance",
+      uncertain: false,
+      draftReplies: [],
+      operations: [
+        {
+          type: "attach",
+          workOrderId: "WO-6",
+          matchType: "cross-tenant",
+          information:
+            "The Tenant upstairs in 2A sees no leak in her bathroom but is home all day tomorrow if the plumber needs to check from her side.",
+        },
+      ],
+      reasoning:
+        "This is the same leak as WO-6, raised by Sam in 1A; the Message comes from the Unit above, so it is a match across Tenants for a Coordinator to confirm.",
+    },
+  },
+  {
     scenarioId: "common-area-merge-across-units",
     title: "Laundry room leak reported from another Unit",
     turns: [
