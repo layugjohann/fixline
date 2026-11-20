@@ -3,8 +3,8 @@ import path from "node:path";
 import type { LanguageModel } from "ai";
 import { FakeBoard } from "@/board";
 import type { Trace } from "@/domain";
-import { InvalidProposalError, NoProposalError, runIntake } from "@/intake";
-import { ModelRateLimitError, rejectedToolCall } from "@/models";
+import { InvalidProposalError, NoProposalError, RejectedToolCallError, runIntake } from "@/intake";
+import { ModelRateLimitError } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 import { failAll, gradeProposal, type Grade } from "./graders";
 import { judgeDraftReplies } from "./judge";
@@ -101,6 +101,13 @@ async function runScenario(
       trace: intake.trace,
     };
   } catch (error) {
+    if (error instanceof RejectedToolCallError) {
+      // The provider rejected the model's own tool call on every try (a tool that doesn't exist,
+      // input that breaks the schema, no tool call at all): the model failed, just as if Intake
+      // had rejected it. The trace shows each rejected call and retry.
+      const grades = failAll(`rejected tool call after ${error.attempts} tries: ${error.explanation}`);
+      return { result: { ...base, ...outcome(grades) }, trace: error.trace };
+    }
     if (error instanceof NoProposalError) {
       // The agent failed: that is a graded failure, with the steps it took kept for diagnosis.
       const grades = failAll(`no Proposal: ${error.message}`);
@@ -114,13 +121,6 @@ async function runScenario(
       // Work Order, or a broken schema): the agent failed, and the trace shows why.
       const grades = failAll(`invalid Proposal: ${error.problems.join(" ")}`);
       return { result: { ...base, ...outcome(grades) }, trace: error.trace };
-    }
-    // The provider refused the model's own tool call (a tool that doesn't exist, input that breaks
-    // the schema, no tool call at all): the model failed, just as if Intake had rejected it.
-    const rejected = rejectedToolCall(error);
-    if (rejected) {
-      const grades = failAll(`rejected tool call: ${rejected}`);
-      return { result: { ...base, ...outcome(grades) }, trace: { messageId: scenario.message.id, steps: [] } };
     }
     // A rate limit or used-up quota means the scenario never ran: it is neither passed nor failed.
     if (error instanceof ModelRateLimitError) return notRun(scenario, error);
