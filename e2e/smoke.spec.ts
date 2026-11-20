@@ -1,7 +1,7 @@
 /**
  * The one browser smoke test, run against the deployed app (see playwright.config.ts).
  *
- * Replay mode must load and step through a recorded run. In live mode, a Message sent
+ * The console's Demo workspace must load and step through a recorded run. In live mode, a Message sent
  * from the sandbox must flow through to the Review Queue and on to the Board. The live
  * Intake request is intercepted and answered in this process by live mode's own request
  * handler on a scripted mock model, so the test never makes a free-tier model call.
@@ -48,15 +48,24 @@ function scriptedModel(email: string): MockLanguageModelV4 {
   });
 }
 
-test("replay mode loads and steps through a recorded run", async ({ page }) => {
+test("the Demo workspace steps through a recorded run", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Fixline", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Recorded run:")).toBeVisible();
+  await page.getByRole("link", { name: "Open the console" }).click();
 
-  const trace = page.getByRole("region", { name: "Trace" });
-  await expect(trace.getByText(/^Step 1 of \d+$/)).toBeVisible();
-  await trace.getByRole("button", { name: "Show all" }).click();
-  await expect(trace.getByText(/^Routing decision: /)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review Queue", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Proposal" })).toBeVisible();
+
+  await page.getByRole("navigation", { name: "Console" }).getByRole("link", { name: "Runs", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Runs", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Burst pipe flooding a bathroom" }).click();
+
+  const run = page.getByRole("region", { name: "Agent run" });
+  await expect(run.getByText(/^Step 1 of \d+$/)).toBeVisible();
+  await run.getByRole("button", { name: "Next step" }).click();
+  await expect(run.getByText(/^Step 2 of \d+$/)).toBeVisible();
+  await run.getByRole("button", { name: "Last step" }).click();
+  await expect(run.getByRole("heading", { name: /^Routing decision: / })).toBeVisible();
 });
 
 test("a sandbox Message flows through the Review Queue to the Board", async ({ page }) => {
