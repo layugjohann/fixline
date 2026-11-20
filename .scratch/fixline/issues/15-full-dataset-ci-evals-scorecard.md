@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 07, 08, 09, 10
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/15
 
 - [x] The golden dataset has 60–100 scenarios spanning every grader dimension

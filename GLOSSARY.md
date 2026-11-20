@@ -44,6 +44,10 @@ _Avoid_: Author, contact, requester
 One raw inbound communication from a Sender, exactly as received and never edited. A Message may relate to zero, one, or many Work Orders.
 _Avoid_: Request, email, complaint, ticket
 
+**Incoming Messages**:
+Messages that have arrived but have not yet been through Intake.
+_Avoid_: Inbox (easily confused with the Review Queue), unread, backlog
+
 **Draft Reply**:
 A response to a Tenant composed on the company's behalf, which is never sent without human approval.
 _Avoid_: Response, auto-reply

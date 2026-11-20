@@ -4,7 +4,7 @@
 
 **Blocked by:** 10, 12
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/14
 
 - [ ] Per-visitor and global daily caps are enforced for shared-key live runs

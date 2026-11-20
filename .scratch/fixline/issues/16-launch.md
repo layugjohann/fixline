@@ -11,7 +11,7 @@
 **Blocked by:** 11, 13, 14, 15, 17, 18
 **Stacked on:** issue/18-recover-from-rejected-tool-calls
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/18
 
 - [ ] The browser smoke test passes against the deployed URL without making free-tier calls

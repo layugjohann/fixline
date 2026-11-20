@@ -12,7 +12,7 @@ Behaviour:
 
 **Blocked by:** 15
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/16
 
 - [ ] `listProperties` returns every Property with its Units and Common Areas, and no Tenant data

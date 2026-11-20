@@ -17,7 +17,7 @@ Behaviour:
 **Blocked by:** 15
 **Stacked on:** issue/17-place-problems-from-unknown-senders
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/17
 
 - [ ] A rejected tool call (unknown tool, schema mismatch, or no tool call) is retried with the provider's explanation and the list of real tool names, at most 2 times per Message
