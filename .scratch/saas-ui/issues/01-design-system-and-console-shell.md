@@ -13,7 +13,8 @@
 
 **Blocked by:** none
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/19
 
 - [ ] Tailwind v4 + shadcn/ui + lucide-react set up, with light/dark tokens and a toggle
 - [ ] Console layout with the icon rail, glossary nav labels, workspace switcher and wordmark
@@ -37,3 +38,5 @@ Usage: Implementer 80 input, 48,875 output, 108,311 cache creation, 3,329,608 ca
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-01-2026-11-20T20-07-04-539Z.log`).
 
 Usage: Body writer 2 input, 1,254 output, 110,896 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/19
