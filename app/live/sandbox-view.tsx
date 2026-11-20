@@ -305,8 +305,9 @@ export function SandboxView() {
         <>
           <h2>Proposal rejected</h2>
           <p>
-            Proposal validation rejected the agent&apos;s Proposal for {senderName(latestRejection.message)}&apos;s
-            Message, so nothing reached the Board or the Review Queue. The Message is still in the inbox.
+            The agent produced no valid Proposal for {senderName(latestRejection.message)}&apos;s Message (Proposal
+            validation rejected it, or the model provider rejected the model&apos;s tool calls), so nothing reached
+            the Board or the Review Queue. The Message is still in the inbox.
           </p>
           <ul>
             {latestRejection.problems.map((problem, index) => (
@@ -382,7 +383,7 @@ export function SandboxView() {
 
       {sandbox.rejections.length > 0 && (
         <details>
-          <summary>Rejected by validation ({sandbox.rejections.length})</summary>
+          <summary>Rejected ({sandbox.rejections.length})</summary>
           <ul>
             {sandbox.rejections.map((rejection, index) => (
               <li key={index}>

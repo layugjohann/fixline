@@ -93,6 +93,24 @@ function Step({ step }: { step: TraceStep }) {
           </ul>
         </>
       );
+    case "rejected-tool-call":
+      return (
+        <>
+          <strong>Tool call rejected by the model provider</strong>
+          <p style={{ whiteSpace: "pre-wrap", margin: "0.25rem 0" }}>{step.explanation}</p>
+        </>
+      );
+    case "retry":
+      return (
+        <>
+          <strong>
+            Retry {step.attempt} of {step.maxRetries}
+          </strong>
+          <p style={{ margin: "0.25rem 0" }}>
+            The model was told what was rejected and why, and given the exact names of its tools.
+          </p>
+        </>
+      );
     default: {
       // Every step type must be rendered: adding one to the trace format breaks this until it is.
       const unhandled: never = step;

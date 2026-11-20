@@ -12,7 +12,13 @@ import { z } from "zod";
 import { FakeBoard } from "@/board";
 import { MessageSchema, ReviewQueueEntrySchema, WorkOrderSchema } from "@/domain";
 import { propertyRoster } from "@/fixtures";
-import { InvalidProposalError, ModelRateLimitError, NoProposalError, runIntake } from "@/intake";
+import {
+  InvalidProposalError,
+  ModelRateLimitError,
+  NoProposalError,
+  RejectedToolCallError,
+  runIntake,
+} from "@/intake";
 import { ModelNotConfiguredError, configuredModel, createModel, type ConfiguredModel, type ModelConfig } from "@/models";
 import { InMemoryReviewQueue } from "@/review-queue";
 import { OWN_KEY_PROVIDER_LABELS, OwnKeySchema, type OwnKey } from "./own-key";
@@ -155,6 +161,18 @@ function knownErrorResponse(
         status: 429,
         headers: error.retryAfterSeconds === undefined ? undefined : { "Retry-After": String(error.retryAfterSeconds) },
       },
+    );
+  }
+  // The provider rejected the model's tool call on every try: the model failed, not the server.
+  // The sandbox is unchanged, and the trace shows each rejected call and retry.
+  if (error instanceof RejectedToolCallError) {
+    return respond(
+      {
+        error: "The model couldn't produce a valid Proposal, so nothing was changed. Try again, or try another model.",
+        problems: [error.message],
+        trace: error.trace,
+      },
+      { status: 502 },
     );
   }
   if (error instanceof NoProposalError) {

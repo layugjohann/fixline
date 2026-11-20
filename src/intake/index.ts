@@ -8,7 +8,7 @@ import { lookUpSender } from "./property-roster";
 import { decideRouting, splitEmergency, type RoutingContext } from "./review-policy";
 import { InvalidProposalError, validateProposal } from "./validation";
 
-export { NoProposalError } from "./agent";
+export { MAX_REJECTED_TOOL_CALL_RETRIES, NoProposalError, RejectedToolCallError } from "./agent";
 export { WorkOrderClosedError } from "./applier";
 export { InvalidProposalError } from "./validation";
 export { ModelRateLimitError } from "@/models";

@@ -316,6 +316,10 @@ export const TraceStepSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("routing"), decision: RoutingDecisionSchema }),
   /** Proposal validation rejected the Proposal: it never reached the Board or the Review Queue. */
   z.object({ type: z.literal("rejection"), problems: z.array(z.string()) }),
+  /** The model provider rejected the model's tool call (an unknown tool, a schema mismatch, or no tool call). */
+  z.object({ type: z.literal("rejected-tool-call"), explanation: z.string() }),
+  /** The turn was tried again after a rejected tool call: retry `attempt` of at most `maxRetries`. */
+  z.object({ type: z.literal("retry"), attempt: z.number().int().positive(), maxRetries: z.number().int().positive() }),
 ]);
 export type TraceStep = z.infer<typeof TraceStepSchema>;
 
