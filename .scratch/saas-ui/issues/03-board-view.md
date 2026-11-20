@@ -10,7 +10,8 @@
 **Blocked by:** 01
 **Stacked on:** issue/02-sandbox-workspace
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/21
 
 - [x] Kanban by Urgency with a collapsed Closed column
 - [x] Table view with Urgency, Trade and Location filters
@@ -32,3 +33,7 @@ Usage: Implementer 44 input, 22,559 output, 73,663 cache creation, 1,287,708 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-03-2026-11-20T20-54-09-885Z.log`).
 
 Usage: Body writer 2 input, 1,143 output, 29,285 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/21
+
+Stacked on Base Issue 02: this Pull Request targets `issue/02-sandbox-workspace`, the branch of https://github.com/layugjohann/fixline/pull/20. Merge that Pull Request first.
