@@ -12,7 +12,8 @@ Behaviour:
 
 **Blocked by:** 15
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/16
 
 - [ ] `listProperties` returns every Property with its Units and Common Areas, and no Tenant data
 - [ ] An unknown Sender who names exactly one Unit or Common Area on the roster gets a create in that Location, routed for review under "unknown-sender" and not flagged uncertain
@@ -35,3 +36,5 @@ Usage: Implementer 28 input, 9,328 output, 53,883 cache creation, 683,313 cache 
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-17-2026-11-20T15-53-50-962Z.log`).
 
 Usage: Body writer 2 input, 1,373 output, 23,025 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/16
