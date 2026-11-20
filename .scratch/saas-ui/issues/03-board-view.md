@@ -11,7 +11,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Kanban by Urgency with a collapsed Closed column
-- [ ] Table view with Urgency, Trade and Location filters
-- [ ] Work Order side sheet with its linked Messages
-- [ ] Property Roster page
+- [x] Kanban by Urgency with a collapsed Closed column
+- [x] Table view with Urgency, Trade and Location filters
+- [x] Work Order side sheet with its linked Messages
+- [x] Property Roster page

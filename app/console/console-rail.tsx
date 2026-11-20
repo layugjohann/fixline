@@ -38,8 +38,8 @@ interface NavItem {
 
 /** The pages each workspace has built so far; the rest show as coming soon. */
 const WORKSPACE_PAGES: Record<Workspace, readonly string[]> = {
-  demo: ["review-queue", "runs"],
-  sandbox: ["incoming-messages", "review-queue", "board"],
+  demo: ["review-queue", "board", "property-roster", "runs"],
+  sandbox: ["incoming-messages", "review-queue", "board", "property-roster"],
 };
 
 /** The rail's navigation, in glossary terms, grouped as Work, Reference and Agent. */
@@ -52,7 +52,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { label: "Board", icon: <SquareKanban />, page: "board" },
     ],
   },
-  { label: "Reference", items: [{ label: "Property Roster", icon: <BookUser /> }] },
+  { label: "Reference", items: [{ label: "Property Roster", icon: <BookUser />, page: "property-roster" }] },
   {
     label: "Agent",
     items: [
