@@ -11,7 +11,8 @@
 **Blocked by:** 11, 13, 14, 15, 17, 18
 **Stacked on:** issue/18-recover-from-rejected-tool-calls
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/18
 
 - [ ] The browser smoke test passes against the deployed URL without making free-tier calls
 - [ ] Curated replays cover a duplicate, a multi-problem split, the ceiling leak, an emergency, and an injection attempt
@@ -31,3 +32,7 @@ Usage: Implementer 56 input, 20,057 output, 84,590 cache creation, 1,939,495 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-16-2026-11-20T16-06-02-433Z.log`).
 
 Usage: Body writer 2 input, 1,179 output, 33,124 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/18
+
+Stacked on Base Issue 18: this Pull Request targets `issue/18-recover-from-rejected-tool-calls`, the branch of https://github.com/layugjohann/fixline/pull/17. Merge that Pull Request first.
