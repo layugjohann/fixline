@@ -1535,6 +1535,28 @@ export const goldenScenarios = parseScenarios([
       routing: { outcome: "apply-and-flag", rules: ["emergency", "unknown-sender"] },
     },
   },
+  {
+    id: "unknown-sender-common-area-emergency",
+    description:
+      "A Sender who isn't in the Property Roster reports water pouring through the lobby ceiling at Quay Court: the agent " +
+      "places it in that Common Area from the Message, so it is created at once and flagged with the unknown-Sender rule.",
+    tags: ["unknown-sender", "common-area", "emergency"],
+    board: existingWorkOrders,
+    propertyRoster,
+    message: {
+      id: "msg-unknown-quay-lobby-flood",
+      sender: { email: "courier.dan@example.net", name: "Dan" },
+      receivedAt: "2026-11-21T17:25:00Z",
+      body:
+        "Hi, I'm a courier, just dropping a parcel at Quay Court. Water is pouring through the ceiling in the lobby, " +
+        "right next to the light fitting, and there's a big puddle spreading across the floor. Thought someone should know asap.",
+    },
+    expected: {
+      classification: "maintenance",
+      workOrders: [{ location: commonArea("quay-court-lobby"), trade: "plumbing", urgency: "emergency" }],
+      routing: { outcome: "apply-and-flag", rules: ["emergency", "unknown-sender"] },
+    },
+  },
 
   // --- More uncertainty and Draft Replies ----------------------------------------------
   {

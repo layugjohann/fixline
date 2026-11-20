@@ -15,3 +15,27 @@ export function lookUpSender(roster: PropertyRoster, sender: Pick<Sender, "email
   }
   return { found: false };
 }
+
+/** One Property as `listProperties` shows it: its Units and Common Areas, never its Tenants. */
+export interface PropertyListing {
+  id: string;
+  name: string;
+  address: string;
+  units: { id: string; label: string }[];
+  commonAreas: { id: string; name: string }[];
+}
+
+/**
+ * Every Property in the Property Roster with its Units and Common Areas, so the agent can place a
+ * problem from a Sender who isn't in the Property Roster. It returns no Tenant data: the Sender is
+ * unverified and could be asking who lives where.
+ */
+export function listProperties(roster: PropertyRoster): PropertyListing[] {
+  return roster.properties.map((property) => ({
+    id: property.id,
+    name: property.name,
+    address: property.address,
+    units: property.units.map((unit) => ({ id: unit.id, label: unit.label })),
+    commonAreas: property.commonAreas.map((area) => ({ id: area.id, name: area.name })),
+  }));
+}
