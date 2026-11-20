@@ -10,7 +10,7 @@
 **Blocked by:** 01
 **Stacked on:** issue/02-sandbox-workspace
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/21
 
 - [x] Kanban by Urgency with a collapsed Closed column

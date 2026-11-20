@@ -13,7 +13,7 @@
 **Blocked by:** 01
 **Stacked on:** issue/01-design-system-and-console-shell
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/20
 
 - [ ] `inbox` renamed to `incomingMessages` in code, with `SANDBOX_VERSION` 2

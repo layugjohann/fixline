@@ -13,7 +13,7 @@
 
 **Blocked by:** none
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/19
 
 - [ ] Tailwind v4 + shadcn/ui + lucide-react set up, with light/dark tokens and a toggle
