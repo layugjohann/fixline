@@ -146,7 +146,8 @@ export const ScorecardSummarySchema = z.object({
 });
 export type ScorecardSummary = z.infer<typeof ScorecardSummarySchema>;
 
-const DIMENSION_LABELS: Record<Dimension, string> = {
+/** How the README table and the console's Scorecard page name each dimension. */
+export const DIMENSION_LABELS: Record<Dimension, string> = {
   classification: "Classification (maintenance or not)",
   count: "Number of Work Orders",
   match: "Match target (attach or create)",

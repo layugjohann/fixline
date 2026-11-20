@@ -116,6 +116,8 @@ npm run eval:compare -- eval-runs/gpt-oss-120b eval-runs/qwen --readme README.md
 
 Any other model spec works the same way, including a paid one with your own key (`--model claude`). `--readme` rewrites the table between the scorecard markers in the [Scorecard](#scorecard) section (`--out <file>` writes it to a file instead). Scenarios a model's rate limit stopped are counted as not graded, not as failures. When the provider rejects a model's tool call (a tool that doesn't exist, input that breaks the schema, or no tool call at all), the scenario fails on every dimension, because no Proposal was made; that is why a model that rarely gets its tool calls through scores low across the board.
 
+The console's Scorecard page (`/console/demo/scorecard`) is built from the committed eval runs: every `eval-runs/<run>/scorecard.json`, with the traces next to it. It shows the latest run per model side by side on the same dimensions, then each scenario's result per model; opening a result steps through that run's trace. Commit a run's directory to show it there.
+
 Gemini (`gemini-3.8-flash`, the app's fallback) is not in the table: during both attempts Google's free tier was overloaded ("This model is currently experiencing high demand"), and the retries used up its daily requests after one graded scenario. Add its row with `--model gemini --out eval-runs/gemini` once it responds.
 
 **Known weak spots.** From the runs in the [scorecard](#scorecard) (traces under each run's `traces/`):
