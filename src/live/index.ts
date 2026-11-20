@@ -65,7 +65,7 @@ const LIMIT_GUIDANCE: Record<LiveRunLimit | "unavailable", string> = {
   unavailable: "Live runs on the shared free-tier model are unavailable right now.",
 };
 const LIMIT_NEXT_STEPS =
-  "You can keep exploring in replay mode, which needs no model, or paste your own Claude or OpenAI key to keep running live.";
+  "You can keep exploring the Demo workspace, which needs no model, or add your own Claude or OpenAI key from the workspace menu to keep running live.";
 
 /** Builds live mode's POST handler. */
 export function createLiveIntakeHandler(deps: LiveIntakeDependencies): (request: Request) => Promise<Response> {

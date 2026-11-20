@@ -36,14 +36,20 @@ interface NavItem {
   page?: string;
 }
 
+/** The pages each workspace has built so far; the rest show as coming soon. */
+const WORKSPACE_PAGES: Record<Workspace, readonly string[]> = {
+  demo: ["review-queue", "runs"],
+  sandbox: ["incoming-messages", "review-queue", "board"],
+};
+
 /** The rail's navigation, in glossary terms, grouped as Work, Reference and Agent. */
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Work",
     items: [
-      { label: "Incoming Messages", icon: <MessagesSquare /> },
+      { label: "Incoming Messages", icon: <MessagesSquare />, page: "incoming-messages" },
       { label: "Review Queue", icon: <ListChecks />, page: "review-queue" },
-      { label: "Board", icon: <SquareKanban /> },
+      { label: "Board", icon: <SquareKanban />, page: "board" },
     ],
   },
   { label: "Reference", items: [{ label: "Property Roster", icon: <BookUser /> }] },
@@ -59,8 +65,21 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 const itemClass =
   "relative grid size-10 place-items-center rounded-lg outline-none [&_svg]:size-4 focus-visible:ring-2 focus-visible:ring-ring";
 
-/** The console's icon rail: wordmark, navigation, theme toggle and workspace switcher. */
-export function ConsoleRail({ workspace, pendingCount }: { workspace: Workspace; pendingCount: number }) {
+/**
+ * The console's icon rail: wordmark, the workspace's actions (such as New Message), navigation,
+ * theme toggle and the workspace menu, which holds the workspace switcher and any `menuItems`.
+ */
+export function ConsoleRail({
+  workspace,
+  pendingCount,
+  actions,
+  menuItems,
+}: {
+  workspace: Workspace;
+  pendingCount: number;
+  actions?: ReactNode;
+  menuItems?: ReactNode;
+}) {
   const pathname = usePathname();
   const base = `/console/${workspace}`;
 
@@ -75,11 +94,13 @@ export function ConsoleRail({ workspace, pendingCount }: { workspace: Workspace;
         <span className="text-[10px] font-semibold tracking-wide text-rail-active-foreground">Fixline</span>
       </a>
 
+      {actions && <div className="mb-3 flex flex-col items-center gap-1">{actions}</div>}
+
       {NAV_GROUPS.map((group, groupIndex) => (
         <ul key={group.label} aria-label={group.label} className="flex flex-col items-center gap-1">
           {groupIndex > 0 && <li aria-hidden className="mx-auto my-2 h-px w-8 bg-rail-active" />}
           {group.items.map((item) => {
-            const href = item.page && `${base}/${item.page}`;
+            const href = item.page && WORKSPACE_PAGES[workspace].includes(item.page) ? `${base}/${item.page}` : undefined;
             const active = href !== undefined && (pathname === href || pathname.startsWith(`${href}/`));
             const badge = item.page === "review-queue" && pendingCount > 0 ? pendingCount : undefined;
             return (
@@ -93,7 +114,7 @@ export function ConsoleRail({ workspace, pendingCount }: { workspace: Workspace;
 
       <div className="mt-auto flex flex-col items-center gap-2">
         <ThemeToggle />
-        <WorkspaceSwitcher workspace={workspace} />
+        <WorkspaceMenu workspace={workspace} menuItems={menuItems} />
       </div>
     </nav>
   );
@@ -164,15 +185,15 @@ const WORKSPACES: { key: Workspace; label: string; detail: string; href: string;
     key: "sandbox",
     label: "Your sandbox",
     detail: "Live runs in your browser",
-    href: "/live",
+    href: "/console/sandbox/incoming-messages",
     icon: <FlaskConical />,
   },
 ];
 
-function WorkspaceSwitcher({ workspace }: { workspace: Workspace }) {
+function WorkspaceMenu({ workspace, menuItems }: { workspace: Workspace; menuItems?: ReactNode }) {
   const current = WORKSPACES.find((candidate) => candidate.key === workspace);
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger
@@ -199,6 +220,12 @@ function WorkspaceSwitcher({ workspace }: { workspace: Workspace }) {
             </a>
           </DropdownMenuItem>
         ))}
+        {menuItems && (
+          <>
+            <DropdownMenuSeparator />
+            {menuItems}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

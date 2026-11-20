@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { POST as decideOnReviewQueue } from "../../app/api/review-queue/route";
 import { FakeBoard } from "@/board";
 import type { Proposal } from "@/domain";
-import { inboxMessages, propertyRoster, sandboxBoard, sandboxReviewQueue } from "@/fixtures";
+import { incomingMessages, propertyRoster, sandboxBoard, sandboxReviewQueue } from "@/fixtures";
 import { InvalidProposalError, runIntake } from "@/intake";
 import { InMemoryReviewQueue } from "@/review-queue";
 import {
@@ -34,9 +34,9 @@ function submitTurn(proposal: Proposal) {
   };
 }
 
-/** Process one inbox Message in a sandbox the way the live page does: Intake on its state, then record the run. */
+/** Process one Incoming Message in a sandbox the way the live page does: Intake on its state, then record the run. */
 async function processMessage(sandbox: Sandbox, messageId: string, proposal: Proposal): Promise<Sandbox> {
-  const item = sandbox.inbox.find((candidate) => candidate.message.id === messageId)!;
+  const item = sandbox.incomingMessages.find((candidate) => candidate.message.id === messageId)!;
   const board = new FakeBoard(sandbox.board);
   const reviewQueue = new InMemoryReviewQueue(sandbox.reviewQueue);
   const result = await runIntake(item.message, {
@@ -82,13 +82,13 @@ const lobbyAttach: Proposal = {
 };
 
 describe("Demo sandbox", () => {
-  it("seeds a first visit from fixtures with every inbox Message unprocessed", () => {
+  it("seeds a first visit from fixtures with every Incoming Message unprocessed", () => {
     const sandbox = loadSandbox(null);
 
     expect(sandbox.board).toEqual(sandboxBoard);
     expect(sandbox.reviewQueue).toEqual(sandboxReviewQueue);
-    expect(sandbox.inbox.map((item) => item.message)).toEqual(inboxMessages);
-    expect(sandbox.inbox.every((item) => !item.processed)).toBe(true);
+    expect(sandbox.incomingMessages.map((item) => item.message)).toEqual(incomingMessages);
+    expect(sandbox.incomingMessages.every((item) => !item.processed)).toBe(true);
     expect(sandbox.history).toEqual([]);
   });
 
@@ -103,24 +103,24 @@ describe("Demo sandbox", () => {
     }
   });
 
-  it("processes an inbox Message through Intake and records the run", async () => {
-    const sandbox = await processMessage(seedSandbox(), "msg-inbox-lobby-follow-up", lobbyAttach);
+  it("processes an Incoming Message through Intake and records the run", async () => {
+    const sandbox = await processMessage(seedSandbox(), "msg-incoming-lobby-follow-up", lobbyAttach);
 
-    expect(sandbox.inbox.find((item) => item.message.id === "msg-inbox-lobby-follow-up")?.processed).toBe(true);
-    expect(sandbox.inbox.filter((item) => item.processed)).toHaveLength(1);
+    expect(sandbox.incomingMessages.find((item) => item.message.id === "msg-incoming-lobby-follow-up")?.processed).toBe(true);
+    expect(sandbox.incomingMessages.filter((item) => item.processed)).toHaveLength(1);
     expect(sandbox.history).toHaveLength(1);
     expect(sandbox.history[0]?.routing.rules).toContain("cross-tenant-match");
     // A cross-Tenant match waits for a Coordinator; the Board is unchanged.
     expect(sandbox.board).toEqual(sandboxBoard);
     expect(sandbox.reviewQueue.map((entry) => [entry.message.id, entry.status])).toEqual([
       ["msg-seed-unknown-bike-store", "pending"],
-      ["msg-inbox-lobby-follow-up", "pending"],
+      ["msg-incoming-lobby-follow-up", "pending"],
     ]);
   });
 
   it("records a Proposal that validation rejected, leaving the Message unprocessed and the Board untouched", async () => {
     const seeded = seedSandbox();
-    const item = seeded.inbox.find((candidate) => candidate.message.id === "msg-inbox-lobby-follow-up")!;
+    const item = seeded.incomingMessages.find((candidate) => candidate.message.id === "msg-incoming-lobby-follow-up")!;
     const attachToMissing: Proposal = {
       ...lobbyAttach,
       operations: [{ ...lobbyAttach.operations[0]!, workOrderId: "WO-404" } as Proposal["operations"][number]],
@@ -139,12 +139,12 @@ describe("Demo sandbox", () => {
     expect(sandbox.rejections).toEqual([{ message: item.message, problems, trace }]);
     expect(sandbox.board).toEqual(seeded.board);
     expect(sandbox.reviewQueue).toEqual(seeded.reviewQueue);
-    expect(sandbox.inbox).toEqual(seeded.inbox);
+    expect(sandbox.incomingMessages).toEqual(seeded.incomingMessages);
     expect(sandbox.history).toEqual([]);
     expect(loadSandbox(serialiseSandbox(sandbox))).toEqual(sandbox);
   });
 
-  it("adds a Message sent as a Tenant, or as a new Sender, to the inbox", () => {
+  it("adds a Message sent as a Tenant, or as a new Sender, to Incoming Messages", () => {
     const first = sendMessage(
       seedSandbox(),
       { email: "luis.romero@example.com", name: "Luis Romero" },
@@ -161,22 +161,29 @@ describe("Demo sandbox", () => {
     });
     expect(second.message.id).toBe("msg-sandbox-2");
     expect(second.message.sender).toEqual({ email: "new.person@example.org" });
-    expect(second.sandbox.inbox.slice(-2)).toEqual([
+    expect(second.sandbox.incomingMessages.slice(-2)).toEqual([
       { message: first.message, processed: false },
       { message: second.message, processed: false },
     ]);
   });
 
   it("survives a round trip through browser storage, and reseeds when what's stored can't be read", async () => {
-    const sandbox = await processMessage(seedSandbox(), "msg-inbox-lobby-follow-up", lobbyAttach);
+    const sandbox = await processMessage(seedSandbox(), "msg-incoming-lobby-follow-up", lobbyAttach);
 
     expect(loadSandbox(serialiseSandbox(sandbox))).toEqual(sandbox);
     expect(loadSandbox("not json")).toEqual(seedSandbox());
     expect(loadSandbox(JSON.stringify({ version: 0, board: [] }))).toEqual(seedSandbox());
   });
 
+  it("reseeds a version 1 sandbox, which kept its Messages in an inbox", async () => {
+    const { incomingMessages: messages, ...rest } = await processMessage(seedSandbox(), "msg-incoming-lobby-follow-up", lobbyAttach);
+    const versionOne = { ...rest, version: 1, inbox: messages };
+
+    expect(loadSandbox(JSON.stringify(versionOne))).toEqual(seedSandbox());
+  });
+
   it("resets to the seeded state after the visitor has worked it", async () => {
-    let sandbox = await processMessage(seedSandbox(), "msg-inbox-lobby-follow-up", lobbyAttach);
+    let sandbox = await processMessage(seedSandbox(), "msg-incoming-lobby-follow-up", lobbyAttach);
     sandbox = await decide(sandbox, "RQ-1", "approve");
     expect(sandbox.board).not.toEqual(sandboxBoard);
 

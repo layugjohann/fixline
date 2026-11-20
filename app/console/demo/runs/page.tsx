@@ -13,6 +13,9 @@ const STATUS_STYLES: Record<QueueStatus, string> = {
   "auto-applied": "bg-success text-success-foreground",
   "no-action": "bg-muted text-muted-foreground",
   "not-applied": "bg-destructive/10 text-destructive",
+  approved: "bg-success text-success-foreground",
+  rejected: "bg-muted text-muted-foreground",
+  acknowledged: "bg-success text-success-foreground",
 };
 
 /** Every recorded run in the Demo workspace. */
