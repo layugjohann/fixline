@@ -17,7 +17,8 @@ Behaviour:
 **Blocked by:** 15
 **Stacked on:** issue/17-place-problems-from-unknown-senders
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/17
 
 - [ ] A rejected tool call (unknown tool, schema mismatch, or no tool call) is retried with the provider's explanation and the list of real tool names, at most 2 times per Message
 - [ ] A Message whose retry succeeds gets a normal Proposal and routing
@@ -40,3 +41,7 @@ Usage: Implementer 50 input, 16,595 output, 66,883 cache creation, 1,459,594 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-18-2026-11-20T15-58-56-630Z.log`).
 
 Usage: Body writer 2 input, 1,510 output, 27,988 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/17
+
+Stacked on Base Issue 17: this Pull Request targets `issue/17-place-problems-from-unknown-senders`, the branch of https://github.com/layugjohann/fixline/pull/16. Merge that Pull Request first.
