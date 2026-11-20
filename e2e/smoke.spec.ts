@@ -1,8 +1,8 @@
 /**
  * The one browser smoke test, run against the deployed app (see playwright.config.ts).
  *
- * The console's Demo workspace must load and step through a recorded run. In live mode, a Message sent
- * from the sandbox must flow through to the Review Queue and on to the Board. The live
+ * The console's Demo workspace must load and step through a recorded run. In the sandbox workspace,
+ * a Message sent from the sandbox must flow through to the Review Queue and on to the Board. The live
  * Intake request is intercepted and answered in this process by live mode's own request
  * handler on a scripted mock model, so the test never makes a free-tier model call.
  * The Coordinator's approval goes to the deployed server, which calls no model.
@@ -91,21 +91,35 @@ test("a sandbox Message flows through the Review Queue to the Board", async ({ p
   });
 
   await page.goto("/live");
-  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Incoming Messages", exact: true })).toBeVisible();
+  const rail = page.getByRole("navigation", { name: "Console" });
 
-  await page.getByLabel("Sender:").selectOption({ label: "Someone not in the Property Roster…" });
-  await page.getByLabel("Email:").fill(sender);
-  await page.getByLabel("Message:").fill("Hi, I'm subletting 3B. The bedroom window won't close and it's freezing.");
-  await page.getByRole("button", { name: "Send and process with Intake" }).click();
+  await rail.getByRole("button", { name: "New Message" }).click();
+  const dialog = page.getByRole("dialog", { name: "New Message" });
+  await dialog.getByLabel("Sender", { exact: true }).selectOption({ label: "Someone not in the Property Roster…" });
+  await dialog.getByLabel("Email", { exact: true }).fill(sender);
+  await dialog.getByLabel("Message", { exact: true }).fill("Hi, I'm subletting 3B. The bedroom window won't close and it's freezing.");
+  await dialog.getByRole("button", { name: "Send and run Intake" }).click();
 
-  const queue = page.locator("h2:text-is('Review Queue') + ul > li").filter({ hasText: sender });
-  await expect(queue).toContainText("Sender not in the Property Roster");
-  await expect(queue).toContainText("Smoke test: bedroom window won't close");
+  await page.getByRole("status").filter({ hasText: "Intake ran" }).getByRole("link", { name: "Open the Review Queue" }).click();
+  await expect(page.getByRole("heading", { name: "Review Queue", exact: true })).toBeVisible();
+  const queue = page.getByRole("tabpanel");
+  await queue.getByRole("button", { name: new RegExp(sender) }).click();
+  const conversation = page.getByRole("region", { name: "Conversation" });
+  await expect(conversation).toContainText("Sender not in the Property Roster");
+  await expect(conversation.getByRole("region", { name: "Proposal" })).toContainText("Smoke test: bedroom window won't close");
   expect(intakeRequests).toBe(1);
 
-  const board = page.locator("h2:text-is('Board') + ul");
+  await rail.getByRole("link", { name: "Board", exact: true }).click();
+  const board = page.getByRole("table", { name: "Board" });
+  await expect(board).toBeVisible();
   await expect(board).not.toContainText("Smoke test: bedroom window won't close");
-  await queue.getByRole("button", { name: "Approve" }).click();
+
+  await rail.getByRole("link", { name: /^Review Queue/ }).click();
+  await queue.getByRole("button", { name: new RegExp(sender) }).click();
+  await conversation.getByRole("button", { name: /^Approve & apply/ }).click();
+  await expect(queue.getByRole("button", { name: new RegExp(sender) })).toHaveCount(0);
+
+  await rail.getByRole("link", { name: "Board", exact: true }).click();
   await expect(board).toContainText("Smoke test: bedroom window won't close");
-  await expect(page.locator("h2:text-is('Review Queue') + ul > li").filter({ hasText: sender })).toHaveCount(0);
 });

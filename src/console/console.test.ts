@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { Message, Proposal, Trace, WorkOrder } from "@/domain";
+import type { Message, Proposal, RoutingDecision, Trace, WorkOrder } from "@/domain";
 import { createReplay } from "@/replays";
 import { loadReplays } from "@/replays/files";
+import { recordRun, seedSandbox } from "@/sandbox";
 import {
   demoEntryFromReplay,
   demoReviewQueue,
   describeStep,
   headlineUrgency,
   pendingCount,
+  proposalTitle,
   queueTab,
+  sandboxQueueEntries,
   toolLabel,
   tradeLabel,
 } from "./index";
@@ -104,6 +107,79 @@ describe("the Demo Review Queue", () => {
     const entries = demoReviewQueue(replays);
     expect(entries).toHaveLength(replays.length);
     expect(pendingCount(entries)).toBeGreaterThan(0);
+  });
+});
+
+describe("the sandbox Review Queue", () => {
+  const sandboxMessage: Message = { ...message, id: "msg-sandbox-1", receivedAt: "2026-11-20T10:00:00Z" };
+  const trace: Trace = { messageId: sandboxMessage.id, steps: [{ type: "proposal", proposal }] };
+
+  it("shows every seeded Review Queue entry, with no trace", () => {
+    const sandbox = seedSandbox();
+    const entries = sandboxQueueEntries(sandbox);
+    expect(entries.map((entry) => entry.reviewEntryId).sort()).toEqual(sandbox.reviewQueue.map((entry) => entry.id).sort());
+    expect(entries.every((entry) => entry.trace === undefined)).toBe(true);
+    expect(pendingCount(entries)).toBe(sandbox.reviewQueue.filter((entry) => entry.status === "pending").length);
+  });
+
+  it("links a held Proposal to the run that queued it", () => {
+    const seeded = seedSandbox();
+    const routing: RoutingDecision = { outcome: "review", rules: ["unknown-sender"], reason: "Unknown." };
+    const queued = {
+      ...seeded.reviewQueue[0]!,
+      id: "RQ-99",
+      message: sandboxMessage,
+      proposal,
+      routing,
+      status: "pending" as const,
+    };
+    const sandbox = recordRun(seeded, {
+      message: sandboxMessage,
+      proposal,
+      routing,
+      trace,
+      board: seeded.board,
+      reviewQueue: [...seeded.reviewQueue, queued],
+    });
+    const [newest] = sandboxQueueEntries(sandbox);
+    expect(newest).toMatchObject({ id: "RQ-99", reviewEntryId: "RQ-99", status: "pending", trace, title: "Dripping kitchen sink tap" });
+  });
+
+  it("shows a run applied without review under Auto-handled, with nothing to decide", () => {
+    const seeded = seedSandbox();
+    const sandbox = recordRun(seeded, {
+      message: sandboxMessage,
+      proposal,
+      routing: { outcome: "auto-apply", rules: [], reason: "Clear." },
+      trace,
+      board: seeded.board,
+      reviewQueue: seeded.reviewQueue,
+    });
+    const [newest] = sandboxQueueEntries(sandbox);
+    expect(newest).toMatchObject({ id: "run-1", status: "auto-applied", trace });
+    expect(newest?.reviewEntryId).toBeUndefined();
+    expect(queueTab(newest!.status)).toBe("auto-handled");
+  });
+
+  it("puts decided entries under Auto-handled", () => {
+    expect(["approved", "rejected", "acknowledged"].map((status) => queueTab(status as "approved"))).toEqual([
+      "auto-handled",
+      "auto-handled",
+      "auto-handled",
+    ]);
+  });
+
+  it("titles a Proposal by its first change", () => {
+    expect(proposalTitle(proposal, message)).toBe("Dripping kitchen sink tap");
+    expect(
+      proposalTitle(
+        { ...proposal, operations: [{ type: "attach", workOrderId: "WO-2", matchType: "same-tenant", information: "x" }] },
+        message,
+      ),
+    ).toBe("Update to WO-2");
+    expect(proposalTitle({ ...proposal, classification: "not-maintenance", operations: [] }, message)).toBe(
+      "Not a maintenance matter",
+    );
   });
 });
 

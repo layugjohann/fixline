@@ -17,6 +17,7 @@ import type {
   WorkOrder,
 } from "@/domain";
 import type { Replay } from "@/replays";
+import type { Sandbox } from "@/sandbox";
 
 // --- Review Queue -------------------------------------------------------------
 
@@ -26,9 +27,18 @@ import type { Replay } from "@/replays";
  * - flagged: an emergency already applied to the Board, waiting to be acknowledged;
  * - auto-applied: applied to the Board without a Coordinator;
  * - no-action: not a maintenance matter, so nothing changed;
- * - not-applied: the run ended without a routed Proposal (rejected by validation, or stopped).
+ * - not-applied: the run ended without a routed Proposal (rejected by validation, or stopped);
+ * - approved / rejected / acknowledged: a Coordinator decided (the sandbox only).
  */
-export type QueueStatus = "pending" | "flagged" | "auto-applied" | "no-action" | "not-applied";
+export type QueueStatus =
+  | "pending"
+  | "flagged"
+  | "auto-applied"
+  | "no-action"
+  | "not-applied"
+  | "approved"
+  | "rejected"
+  | "acknowledged";
 
 export const QUEUE_STATUS_LABELS: Record<QueueStatus, string> = {
   pending: "Needs review",
@@ -36,6 +46,9 @@ export const QUEUE_STATUS_LABELS: Record<QueueStatus, string> = {
   "auto-applied": "Auto-applied",
   "no-action": "Not maintenance",
   "not-applied": "Not applied",
+  approved: "Approved",
+  rejected: "Rejected",
+  acknowledged: "Acknowledged",
 };
 
 /** The two tabs of the queue pane. */
@@ -45,25 +58,32 @@ export function queueTab(status: QueueStatus): QueueTab {
   return status === "pending" || status === "flagged" ? "to-review" : "auto-handled";
 }
 
-/** One entry in the Demo workspace's Review Queue, built from a recorded replay. */
-export interface DemoEntry {
-  /** The replay's id. */
+/** One entry in a workspace's Review Queue, as the queue and conversation panes show it. */
+export interface QueueEntry {
   id: string;
   title: string;
-  description?: string;
-  model: string;
-  recordedAt?: string;
   message: Message;
-  /** The Board as it was before the run. */
+  /** The Board the Proposal is shown as a diff against. */
   board: WorkOrder[];
-  trace: Trace;
-  /** The last Proposal the agent submitted, if it got that far. */
+  /** The last Proposal the agent submitted (or a Coordinator's edit of it), if it got that far. */
   proposal?: Proposal;
   /** What the review policy did with the Proposal, if it was routed. */
   routing?: RoutingDecision;
   /** Why validation rejected the last Proposal, if it did. */
   rejectionProblems?: string[];
   status: QueueStatus;
+}
+
+/** One entry in the Demo workspace's Review Queue, built from a recorded replay. */
+export interface DemoEntry extends QueueEntry {
+  /** The replay's id. */
+  id: string;
+  description?: string;
+  model: string;
+  recordedAt?: string;
+  /** The Board as it was before the run. */
+  board: WorkOrder[];
+  trace: Trace;
 }
 
 export function demoEntryFromReplay(replay: Replay): DemoEntry {
@@ -108,8 +128,84 @@ export function demoReviewQueue(replays: readonly Replay[]): DemoEntry[] {
 }
 
 /** How many entries wait for a Coordinator: the Review Queue's badge. */
-export function pendingCount(entries: readonly DemoEntry[]): number {
+export function pendingCount(entries: readonly { status: QueueStatus }[]): number {
   return entries.filter((entry) => queueTab(entry.status) === "to-review").length;
+}
+
+// --- Sandbox Review Queue -------------------------------------------------------
+
+/**
+ * One entry in the sandbox workspace's Review Queue: a Proposal in the visitor's Review
+ * Queue, or an Intake run that was applied without one (shown under Auto-handled).
+ */
+export interface SandboxEntry extends QueueEntry {
+  /** The Review Queue entry a Coordinator decides on. Absent for runs applied without review. */
+  reviewEntryId?: string;
+  /** The Intake run's trace, if the run happened in this sandbox (seeded entries have none). */
+  trace?: Trace;
+  /** The agent's original Proposal, kept once a Coordinator has edited it. */
+  agentProposal?: Proposal;
+  /** Why the last approval sent the Proposal back to review. */
+  conflicts?: string[];
+  rejectionReason?: string;
+  /** When the Draft Replies were marked as sent (nothing is actually sent from the sandbox). */
+  draftRepliesSentAt?: string;
+}
+
+/**
+ * The sandbox's Review Queue as the console shows it: every Review Queue entry, plus the
+ * Intake runs that were applied without review, newest Message first. Proposals are shown
+ * as a diff against the sandbox's Board as it is now.
+ */
+export function sandboxQueueEntries(sandbox: Sandbox): SandboxEntry[] {
+  const queuedMessages = new Set(sandbox.reviewQueue.map((entry) => entry.message.id));
+  const queued = sandbox.reviewQueue.map((entry): SandboxEntry => {
+    const run = sandbox.history.findLast((candidate) => candidate.message.id === entry.message.id);
+    return {
+      id: entry.id,
+      reviewEntryId: entry.id,
+      title: proposalTitle(entry.proposal, entry.message),
+      message: entry.message,
+      board: [...sandbox.board, ...entry.attachTargets],
+      proposal: entry.proposal,
+      routing: entry.routing,
+      status: entry.status,
+      trace: run?.trace,
+      agentProposal: entry.agentProposal,
+      conflicts: entry.conflicts,
+      rejectionReason: entry.rejectionReason,
+      draftRepliesSentAt: entry.draftRepliesSentAt,
+    };
+  });
+  const applied = sandbox.history.flatMap((run, index): SandboxEntry[] =>
+    queuedMessages.has(run.message.id)
+      ? []
+      : [
+          {
+            id: `run-${index + 1}`,
+            title: proposalTitle(run.proposal, run.message),
+            message: run.message,
+            board: sandbox.board,
+            proposal: run.proposal,
+            routing: run.routing,
+            status: queueStatus(run.proposal, run.routing),
+            trace: run.trace,
+          },
+        ],
+  );
+  return [...queued, ...applied].sort(
+    (a, b) => b.message.receivedAt.localeCompare(a.message.receivedAt) || a.id.localeCompare(b.id),
+  );
+}
+
+/** A one-line title for a Proposal: its first new Work Order, or what it attaches to. */
+export function proposalTitle(proposal: Proposal, message: Message): string {
+  if (proposal.classification === "not-maintenance") return "Not a maintenance matter";
+  const [first] = proposal.operations;
+  if (first?.type === "create") return first.title;
+  if (first?.type === "attach") return `Update to ${first.workOrderId}`;
+  const body = message.body.replace(/\s+/g, " ").trim();
+  return body.length > 60 ? `${body.slice(0, 59)}…` : body;
 }
 
 /** The headline Urgency of a Proposal: the most urgent of its new Work Orders and the ones it attaches to. */

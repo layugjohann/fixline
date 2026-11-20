@@ -1,5 +1,5 @@
 /**
- * A demo visitor's sandbox: their own Board, Review Queue, inbox of Messages and
+ * A demo visitor's sandbox: their own Board, Review Queue, Incoming Messages and
  * run history. It lives only in the visitor's browser. The server never stores
  * it: each request carries the parts it needs and gets them back updated.
  */
@@ -16,14 +16,14 @@ import {
   type Sender,
   type WorkOrder,
 } from "@/domain";
-import { inboxMessages, sandboxBoard, sandboxReviewQueue } from "@/fixtures";
+import { incomingMessages, sandboxBoard, sandboxReviewQueue } from "@/fixtures";
 
-/** One Message in the sandbox inbox, and whether Intake has processed it yet. */
-export const InboxItemSchema = z.object({
+/** One Message in the sandbox's Incoming Messages, and whether Intake has processed it yet. */
+export const IncomingMessageSchema = z.object({
   message: MessageSchema,
   processed: z.boolean(),
 });
-export type InboxItem = z.infer<typeof InboxItemSchema>;
+export type IncomingMessage = z.infer<typeof IncomingMessageSchema>;
 
 /** One Intake run in the sandbox: the Message and what Intake did with it. */
 export const SandboxRunSchema = z.object({
@@ -36,7 +36,7 @@ export type SandboxRun = z.infer<typeof SandboxRunSchema>;
 
 /**
  * An Intake run whose Proposal failed Proposal validation. Nothing reached the Board
- * or the Review Queue, and the Message stays unprocessed in the inbox so it can be
+ * or the Review Queue, and the Message stays unprocessed in Incoming Messages so it can be
  * run again.
  */
 export const SandboxRejectionSchema = z.object({
@@ -47,13 +47,13 @@ export const SandboxRejectionSchema = z.object({
 export type SandboxRejection = z.infer<typeof SandboxRejectionSchema>;
 
 /** Bumped whenever the shape changes, so a browser holding an older sandbox is reseeded. */
-export const SANDBOX_VERSION = 1;
+export const SANDBOX_VERSION = 2;
 
 export const SandboxSchema = z.object({
   version: z.literal(SANDBOX_VERSION),
   board: z.array(WorkOrderSchema),
   reviewQueue: z.array(ReviewQueueEntrySchema),
-  inbox: z.array(InboxItemSchema),
+  incomingMessages: z.array(IncomingMessageSchema),
   /** Intake runs, oldest first. */
   history: z.array(SandboxRunSchema),
   /** Proposals that Proposal validation rejected, oldest first. */
@@ -70,7 +70,7 @@ export function seedSandbox(): Sandbox {
     version: SANDBOX_VERSION,
     board: sandboxBoard,
     reviewQueue: sandboxReviewQueue,
-    inbox: inboxMessages.map((message) => ({ message, processed: false })),
+    incomingMessages: incomingMessages.map((message) => ({ message, processed: false })),
     history: [],
     rejections: [],
   });
@@ -96,7 +96,7 @@ export function serialiseSandbox(sandbox: Sandbox): string {
 }
 
 /**
- * A new Message sent "as a Tenant" from the sandbox, added to the end of the inbox.
+ * A new Message sent "as a Tenant" from the sandbox, added to the end of Incoming Messages.
  * The Sender can be a Tenant from the Property Roster or anyone else.
  */
 export function sendMessage(
@@ -112,7 +112,7 @@ export function sendMessage(
     body,
   });
   return {
-    sandbox: { ...sandbox, inbox: [...sandbox.inbox, { message, processed: false }] },
+    sandbox: { ...sandbox, incomingMessages: [...sandbox.incomingMessages, { message, processed: false }] },
     message,
   };
 }
@@ -130,12 +130,12 @@ export function recordRun(
     ...sandbox,
     board,
     reviewQueue,
-    inbox: sandbox.inbox.map((item) => (item.message.id === run.message.id ? { ...item, processed: true } : item)),
+    incomingMessages: sandbox.incomingMessages.map((item) => (item.message.id === run.message.id ? { ...item, processed: true } : item)),
     history: [...sandbox.history, record],
   };
 }
 
-/** Record a Proposal that validation rejected. The Board, Review Queue and inbox are unchanged. */
+/** Record a Proposal that validation rejected. The Board, Review Queue and Incoming Messages are unchanged. */
 export function recordRejection(sandbox: Sandbox, rejection: SandboxRejection): Sandbox {
   return { ...sandbox, rejections: [...sandbox.rejections, rejection] };
 }
@@ -149,7 +149,7 @@ export function recordDecision(
 }
 
 function nextMessageId(sandbox: Sandbox): string {
-  const highest = sandbox.inbox.reduce((max, item) => {
+  const highest = sandbox.incomingMessages.reduce((max, item) => {
     const match = /^msg-sandbox-(\d+)$/.exec(item.message.id);
     return match ? Math.max(max, Number(match[1])) : max;
   }, 0);

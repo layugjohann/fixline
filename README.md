@@ -55,7 +55,7 @@ Replay mode, the [landing page](https://fixline-phi.vercel.app), shows a curated
 | Laundry room leak reported from another Unit | A Common Area problem matches the Work Order another Unit already raised; as a match across Tenants, it goes to review. |
 | A rent question, not maintenance | No Work Order at all. |
 
-In [live mode](https://fixline-phi.vercel.app/live), you get your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, an inbox of example Messages to process live, a form to send your own Message as a Tenant, and a reset button. The sandbox lives only in your browser; the server stores nothing. Live runs on the shared free-tier model are limited per visitor and capped per day; paste your own Claude or OpenAI key in the sandbox to run a frontier model without those limits. Your key is used only for the request that carries it and is never stored or logged.
+In [live mode](https://fixline-phi.vercel.app/live), you get your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, Incoming Messages to run Intake on live, a New Message form to send your own Message as a Tenant, and a reset button in the workspace menu. The sandbox lives only in your browser; the server stores nothing. Live runs on the shared free-tier model are limited per visitor and capped per day; paste your own Claude or OpenAI key from the sandbox's workspace menu to run a frontier model without those limits. Your key is used only for the request that carries it and is never stored or logged.
 
 ## Design highlights
 
@@ -195,7 +195,7 @@ It checks that replay mode loads and steps through a recorded run, and that a Me
 1. [x] Domain types, fake Board, Property Roster fixtures, golden dataset
 2. [x] Agent and command-line eval runner, plus a model scorecard
 3. [x] Trello adapter
-4. [x] Web UI: inbox, Review Queue, trace replay, bring-your-own-key
+4. [x] Web UI: Incoming Messages, Review Queue, trace replay, bring-your-own-key
 5. [ ] Deploy, browser smoke test, curated replays and scorecard in this README (done); demo video (being recorded)
 6. [ ] Stretch: real email channel
 

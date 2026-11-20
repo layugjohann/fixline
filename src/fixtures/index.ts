@@ -197,14 +197,14 @@ export const sandboxReviewQueue: ReviewQueueEntry[] = z.array(ReviewQueueEntrySc
 ]);
 
 /**
- * The example Messages in every demo sandbox's inbox, waiting to be processed:
+ * The example Messages in every demo sandbox's Incoming Messages, waiting to be processed:
  * the routing examples above plus Messages about the seeded Board's Work Orders.
  */
-export const inboxMessages: Message[] = [
+export const incomingMessages: Message[] = [
   ...exampleMessages,
   ...z.array(MessageSchema).parse([
     {
-      id: "msg-inbox-cross-tenant-leak",
+      id: "msg-incoming-cross-tenant-leak",
       sender: { email: "maya.okafor@example.com", name: "Maya Okafor" },
       receivedAt: "2026-11-16T07:45:00Z",
       body:
@@ -212,19 +212,19 @@ export const inboxMessages: Message[] = [
         "coming through his bathroom ceiling. Could it be from mine?",
     },
     {
-      id: "msg-inbox-lobby-follow-up",
+      id: "msg-incoming-lobby-follow-up",
       sender: { email: "sam.whitfield@example.com", name: "Sam Whitfield" },
       receivedAt: "2026-11-16T19:20:00Z",
       body: "The lobby light is flickering again tonight, it's like a strobe in there. Someone's going to trip.",
     },
     {
-      id: "msg-inbox-angry-heating",
+      id: "msg-incoming-angry-heating",
       sender: { email: "priya.nair@example.com", name: "Priya Nair" },
       receivedAt: "2026-11-16T08:02:00Z",
       body: "STILL no heating in the living room!! It's been a week and it's freezing. When is someone coming??",
     },
     {
-      id: "msg-inbox-rent-question",
+      id: "msg-incoming-rent-question",
       sender: { email: "luis.romero@example.com", name: "Luis Romero" },
       receivedAt: "2026-11-16T12:15:00Z",
       body: "Hi, quick question: is rent due on the 1st or the 5th this month? Thanks, Luis",

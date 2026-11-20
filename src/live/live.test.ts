@@ -2,7 +2,7 @@ import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Proposal } from "@/domain";
-import { inboxMessages, sandboxBoard, sandboxReviewQueue } from "@/fixtures";
+import { incomingMessages, sandboxBoard, sandboxReviewQueue } from "@/fixtures";
 import type { ModelConfig } from "@/models";
 import {
   DailyLiveRunLimiter,
@@ -63,7 +63,7 @@ function liveRequest(visitorIp: string, extra: object = {}) {
   return new Request("http://localhost/api/intake", {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": `${visitorIp}, 10.0.0.1` },
-    body: JSON.stringify({ message: inboxMessages[0], board: sandboxBoard, reviewQueue: sandboxReviewQueue, ...extra }),
+    body: JSON.stringify({ message: incomingMessages[0], board: sandboxBoard, reviewQueue: sandboxReviewQueue, ...extra }),
   });
 }
 
@@ -84,7 +84,7 @@ describe("Live mode rate limits", () => {
     expect(refused.status).toBe(429);
     const body = (await refused.json()) as { error: string; liveRunLimit: string };
     expect(body.liveRunLimit).toBe("visitor");
-    expect(body.error).toMatch(/replay mode/);
+    expect(body.error).toMatch(/Demo workspace/);
     expect(body.error).toMatch(/your own Claude or OpenAI key/);
     expect(Number(refused.headers.get("Retry-After"))).toBeGreaterThan(0);
     // The refused run never reached the model.
