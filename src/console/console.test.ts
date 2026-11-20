@@ -3,8 +3,15 @@ import type { Message, Proposal, RoutingDecision, Trace, WorkOrder } from "@/dom
 import { createReplay } from "@/replays";
 import { loadReplays } from "@/replays/files";
 import { recordRun, seedSandbox } from "@/sandbox";
+import { sandboxBoardMessages } from "@/fixtures";
 import {
+  boardColumns,
+  boardLocations,
+  boardTrades,
   demoEntryFromReplay,
+  filterBoard,
+  linkedMessages,
+  sandboxMessages,
   demoReviewQueue,
   describeStep,
   headlineUrgency,
@@ -237,5 +244,68 @@ describe("labels", () => {
     expect(toolLabel("getWorkOrder")).toBe("Get Work Order");
     expect(tradeLabel("hvac")).toBe("HVAC");
     expect(tradeLabel("pest-control")).toBe("Pest control");
+  });
+});
+
+describe("the Board", () => {
+  const workOrder = (overrides: Partial<WorkOrder> & Pick<WorkOrder, "id">): WorkOrder => ({
+    location: { type: "unit", unitId: "harbor-view-2a" },
+    title: overrides.id,
+    description: "",
+    trade: "plumbing",
+    urgency: "routine",
+    status: "open",
+    messageIds: [],
+    ...overrides,
+  });
+  const board: WorkOrder[] = [
+    workOrder({ id: "WO-1", urgency: "routine" }),
+    workOrder({ id: "WO-2", urgency: "emergency", trade: "electrical" }),
+    workOrder({ id: "WO-3", urgency: "urgent", status: "closed" }),
+    workOrder({ id: "WO-4", urgency: "urgent", location: { type: "common-area", commonAreaId: "harbor-view-lobby" } }),
+  ];
+
+  it("puts open Work Orders in a column per Urgency and closed ones in a Closed column", () => {
+    const columns = boardColumns(board);
+    expect(columns.map((column) => [column.label, column.workOrders.map((candidate) => candidate.id)])).toEqual([
+      ["Emergency", ["WO-2"]],
+      ["Urgent", ["WO-4"]],
+      ["Routine", ["WO-1"]],
+      ["Closed", ["WO-3"]],
+    ]);
+  });
+
+  it("filters the table by Urgency, Trade and Location, open and most urgent first", () => {
+    expect(filterBoard(board, {}).map((candidate) => candidate.id)).toEqual(["WO-2", "WO-4", "WO-1", "WO-3"]);
+    expect(filterBoard(board, { urgency: "urgent" }).map((candidate) => candidate.id)).toEqual(["WO-4", "WO-3"]);
+    expect(filterBoard(board, { trade: "electrical" }).map((candidate) => candidate.id)).toEqual(["WO-2"]);
+    expect(filterBoard(board, { location: "harbor-view-lobby" }).map((candidate) => candidate.id)).toEqual(["WO-4"]);
+    expect(filterBoard(board, { urgency: "emergency", location: "harbor-view-lobby" })).toEqual([]);
+  });
+
+  it("lists the Trades and Locations on the Board once each", () => {
+    expect(boardTrades(board)).toEqual(["plumbing", "electrical"]);
+    expect(boardLocations(board)).toEqual([
+      { type: "unit", unitId: "harbor-view-2a" },
+      { type: "common-area", commonAreaId: "harbor-view-lobby" },
+    ]);
+  });
+
+  it("finds a Work Order's linked Messages, oldest first, and reports the ones it doesn't hold", () => {
+    const later: Message = { ...message, id: "msg-2", receivedAt: "2026-11-16T10:00:00Z" };
+    const linked = linkedMessages(workOrder({ id: "WO-9", messageIds: ["msg-2", "msg-gone", "msg-1"] }), [later, message]);
+    expect(linked.messages.map((candidate) => candidate.id)).toEqual(["msg-1", "msg-2"]);
+    expect(linked.missing).toEqual(["msg-gone"]);
+  });
+
+  it("holds every Message of a sandbox, including its seeded Board's", () => {
+    const sandbox = seedSandbox();
+    const messages = sandboxMessages(sandbox, sandboxBoardMessages);
+    for (const seeded of sandbox.board) {
+      expect(linkedMessages(seeded, messages).missing).toEqual([]);
+    }
+    expect(messages.map((candidate) => candidate.id)).toEqual(
+      expect.arrayContaining([...sandbox.incomingMessages.map((item) => item.message.id), sandbox.reviewQueue[0]!.message.id]),
+    );
   });
 });

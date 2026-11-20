@@ -162,6 +162,30 @@ export const sandboxBoard: WorkOrder[] = z.array(WorkOrderSchema).parse([
   },
 ]);
 
+/** The Messages the seeded Board's Work Orders came from, so the Board can show them. */
+export const sandboxBoardMessages: Message[] = z.array(MessageSchema).parse([
+  {
+    id: "msg-seed-sam-ceiling",
+    sender: { email: "sam.whitfield@example.com", name: "Sam Whitfield" },
+    receivedAt: "2026-11-12T08:30:00Z",
+    body:
+      "Hi, there's a brown stain on my bathroom ceiling and it's getting bigger. It drips a bit after whoever is " +
+      "upstairs has a shower. Can someone take a look this week?",
+  },
+  {
+    id: "msg-seed-luis-lobby",
+    sender: { email: "luis.romero@example.com", name: "Luis Romero" },
+    receivedAt: "2026-11-13T20:05:00Z",
+    body: "FYI the big light in the lobby keeps flickering on and off in the evenings.",
+  },
+  {
+    id: "msg-seed-priya-heating",
+    sender: { email: "priya.nair@example.com", name: "Priya Nair" },
+    receivedAt: "2026-11-09T17:45:00Z",
+    body: "The radiator in my living room stays cold. The rest of the heating seems fine. Could someone check it?",
+  },
+]);
+
 /** A Proposal already waiting for a Coordinator when a demo sandbox starts. */
 export const sandboxReviewQueue: ReviewQueueEntry[] = z.array(ReviewQueueEntrySchema).parse([
   {

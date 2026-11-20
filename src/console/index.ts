@@ -4,6 +4,7 @@
  * The Demo workspace is built from the recorded replays: each replay becomes one
  * Review Queue entry (read-only) and one run on the Runs page.
  */
+import { locationId } from "@/domain";
 import type {
   DraftReplyPurpose,
   Message,
@@ -15,6 +16,7 @@ import type {
   Trade,
   Urgency,
   WorkOrder,
+  WorkOrderLocation,
 } from "@/domain";
 import type { Replay } from "@/replays";
 import type { Sandbox } from "@/sandbox";
@@ -215,6 +217,101 @@ export function headlineUrgency(proposal: Proposal | undefined, board: readonly 
     operation.type === "create" ? operation.urgency : board.find((workOrder) => workOrder.id === operation.workOrderId)?.urgency,
   );
   return (["emergency", "urgent", "routine"] as const).find((urgency) => urgencies.includes(urgency));
+}
+
+// --- Board ---------------------------------------------------------------------
+
+/** A column of the Board's Kanban view: one per Urgency for open Work Orders, then Closed. */
+export type BoardColumnKey = Urgency | "closed";
+
+export interface BoardColumn {
+  key: BoardColumnKey;
+  label: string;
+  workOrders: WorkOrder[];
+}
+
+const URGENCY_ORDER: readonly Urgency[] = ["emergency", "urgent", "routine"];
+
+/** The Board as Kanban columns: open Work Orders by Urgency, closed ones together in a last column. */
+export function boardColumns(board: readonly WorkOrder[]): BoardColumn[] {
+  const open = board.filter((workOrder) => workOrder.status === "open");
+  return [
+    ...URGENCY_ORDER.map((urgency) => ({
+      key: urgency,
+      label: URGENCY_LABELS[urgency],
+      workOrders: open.filter((workOrder) => workOrder.urgency === urgency),
+    })),
+    { key: "closed", label: "Closed", workOrders: board.filter((workOrder) => workOrder.status === "closed") },
+  ];
+}
+
+/** The Board table's filters. An absent filter matches every Work Order. */
+export interface BoardFilters {
+  urgency?: Urgency;
+  trade?: Trade;
+  /** A Unit id or Common Area id. */
+  location?: string;
+}
+
+/** The Work Orders that match every filter, open ones first and most urgent first. */
+export function filterBoard(board: readonly WorkOrder[], filters: BoardFilters): WorkOrder[] {
+  return board
+    .filter(
+      (workOrder) =>
+        (!filters.urgency || workOrder.urgency === filters.urgency) &&
+        (!filters.trade || workOrder.trade === filters.trade) &&
+        (!filters.location || locationId(workOrder.location) === filters.location),
+    )
+    .sort(
+      (a, b) =>
+        Number(a.status === "closed") - Number(b.status === "closed") ||
+        URGENCY_ORDER.indexOf(a.urgency) - URGENCY_ORDER.indexOf(b.urgency),
+    );
+}
+
+/** The distinct Trades on the Board, in the order they first appear. */
+export function boardTrades(board: readonly WorkOrder[]): Trade[] {
+  return [...new Set(board.map((workOrder) => workOrder.trade))];
+}
+
+/** The distinct Locations on the Board, one per Unit or Common Area. */
+export function boardLocations(board: readonly WorkOrder[]): WorkOrderLocation[] {
+  const seen = new Map<string, WorkOrderLocation>();
+  for (const workOrder of board) {
+    const id = locationId(workOrder.location);
+    if (!seen.has(id)) seen.set(id, workOrder.location);
+  }
+  return [...seen.values()];
+}
+
+/**
+ * The Messages linked to a Work Order, oldest first. A linked Message the workspace
+ * doesn't hold is left out; `missing` lists the ids of those.
+ */
+export function linkedMessages(
+  workOrder: WorkOrder,
+  messages: readonly Message[],
+): { messages: Message[]; missing: string[] } {
+  const byId = new Map(messages.map((message) => [message.id, message]));
+  const found = workOrder.messageIds.flatMap((id) => byId.get(id) ?? []);
+  return {
+    messages: found.sort((a, b) => a.receivedAt.localeCompare(b.receivedAt)),
+    missing: workOrder.messageIds.filter((id) => !byId.has(id)),
+  };
+}
+
+/** Every Message a sandbox holds: its seeded Board's, Incoming Messages, the Review Queue's and its runs'. */
+export function sandboxMessages(sandbox: Sandbox, seeded: readonly Message[] = []): Message[] {
+  const byId = new Map<string, Message>();
+  for (const message of [
+    ...seeded,
+    ...sandbox.incomingMessages.map((item) => item.message),
+    ...sandbox.reviewQueue.map((entry) => entry.message),
+    ...sandbox.history.map((run) => run.message),
+  ]) {
+    byId.set(message.id, message);
+  }
+  return [...byId.values()];
 }
 
 // --- Labels -------------------------------------------------------------------

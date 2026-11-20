@@ -111,7 +111,7 @@ test("a sandbox Message flows through the Review Queue to the Board", async ({ p
   expect(intakeRequests).toBe(1);
 
   await rail.getByRole("link", { name: "Board", exact: true }).click();
-  const board = page.getByRole("table", { name: "Board" });
+  const board = page.getByRole("region", { name: "Board", exact: true });
   await expect(board).toBeVisible();
   await expect(board).not.toContainText("Smoke test: bedroom window won't close");
 
