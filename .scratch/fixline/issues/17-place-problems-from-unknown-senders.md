@@ -12,7 +12,7 @@ Behaviour:
 
 **Blocked by:** 15
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] `listProperties` returns every Property with its Units and Common Areas, and no Tenant data
 - [ ] An unknown Sender who names exactly one Unit or Common Area on the roster gets a create in that Location, routed for review under "unknown-sender" and not flagged uncertain
@@ -20,3 +20,18 @@ Behaviour:
 - [ ] The new unknown-Sender Common Area emergency scenario is in the golden dataset
 - [ ] Tests cover placing, not placing (missing, nonexistent, ambiguous) and the Common Area emergency with a mock model
 - [ ] The README scorecard and Known weak spots reflect a re-run of the smoke evals
+
+## Comments
+
+Usage: Implementer 28 input, 9,328 output, 53,883 cache creation, 683,313 cache read; Review Session 22 input, 4,170 output, 35,747 cache creation, 447,241 cache read.
+
+**Review Session: Non-critical Findings**
+
+- The README scorecard and the 'Unknown Senders' bullet in Known weak spots haven't been refreshed from a re-run of the smoke evals on groq:openai/gpt-oss-120b (judge gpt-oss-20b). The Issue leaves this to the author because it needs real free-tier calls, so that acceptance criterion is still open.
+- README.md still says the dataset has 78 scenarios (lines 60 and 70); adding unknown-sender-common-area-emergency makes it 79.
+- src/intake/unknown-sender.test.ts copies the mock-model helpers (usage, toolCallTurn) that five other test files already define, instead of sharing one helper. It follows the existing pattern but adds more duplication.
+- Not introduced here: the prompt tells the agent to set uncertain=true for a 'missing-unit' reply, but the draft-reply-missing-unit golden scenario expects routing rules ['unknown-sender', 'draft-reply'] without 'uncertain'. It passes only because the routing grader checks that the expected rules are a subset of the actual ones. Worth making the two agree.
+
+**Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-17-2026-11-20T15-53-50-962Z.log`).
+
+Usage: Body writer 2 input, 1,373 output, 23,025 cache creation, 11,842 cache read.
