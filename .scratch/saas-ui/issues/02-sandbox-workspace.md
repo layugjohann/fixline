@@ -13,7 +13,8 @@
 **Blocked by:** 01
 **Stacked on:** issue/01-design-system-and-console-shell
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/20
 
 - [ ] `inbox` renamed to `incomingMessages` in code, with `SANDBOX_VERSION` 2
 - [ ] Incoming Messages, Review Queue (with working decisions and shortcuts) and New Message work in the sandbox workspace
@@ -36,3 +37,7 @@ Usage: Implementer 20 input, 1,867 output, 22,222 cache creation, 252,407 cache 
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-02-2026-11-20T20-47-41-938Z.log`).
 
 Usage: Body writer 2 input, 1,403 output, 76,776 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/20
+
+Stacked on Base Issue 01: this Pull Request targets `issue/01-design-system-and-console-shell`, the branch of https://github.com/layugjohann/fixline/pull/19. Merge that Pull Request first.
