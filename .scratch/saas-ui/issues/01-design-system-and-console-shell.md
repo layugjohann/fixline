@@ -13,10 +13,27 @@
 
 **Blocked by:** none
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] Tailwind v4 + shadcn/ui + lucide-react set up, with light/dark tokens and a toggle
 - [ ] Console layout with the icon rail, glossary nav labels, workspace switcher and wordmark
 - [ ] Demo Review Queue renders every replay in the three-pane layout, read-only
 - [ ] Runs page lists replays and steps through each trace, including rejection, rejected-tool-call and retry steps
 - [ ] Smoke test passes with role/label selectors
+
+## Comments
+
+Usage: Implementer 80 input, 48,875 output, 108,311 cache creation, 3,329,608 cache read; Review Session 16 input, 5,844 output, 121,249 cache creation, 908,101 cache read.
+
+**Review Session: Non-critical Findings**
+
+- The Spec says that below `lg` the console rail becomes a drawer and the panes stack; the console is a fixed three-pane row at all widths. Not on Issue 01's checklist, so likely later work.
+- Unused code: components/ui/badge.tsx and components/ui/separator.tsx are never imported, and DemoEntry.recordedAt is never read.
+- Duplicated labels: app/live/sandbox-view.tsx keeps its own RULE_LABELS and DRAFT_REPLY_PURPOSE_LABELS, with different wording, next to the new ones in src/console.
+- Review Queue: switching tabs keeps the previous entry selected, so the conversation and agent-run panes can show an entry that isn't in the visible list.
+- The queue pane's tabs use role="tab" without arrow-key navigation, which tablists normally support.
+- The workspace switcher's "Your sandbox" item links to /live, a full page load to the old layout, rather than a sandbox workspace inside the console. Acceptable for this slice, but not yet the workspace the Spec describes.
+
+**Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-01-2026-11-20T20-07-04-539Z.log`).
+
+Usage: Body writer 2 input, 1,254 output, 110,896 cache creation, 11,842 cache read.
