@@ -16,7 +16,9 @@ export default async function Home() {
         proposes Work Orders; fixed rules decide what happens to the Proposal. Step through a recorded run below.
       </p>
       <p>
-        <strong>Replay mode</strong> · <Link href="/live">Live mode</Link>
+        <strong>Replay mode</strong> · <Link href="/live">Live mode</Link> ·{" "}
+        {/* A full page load, so the console's styles never reach this page. */}
+        <a href="/console">Open the console</a>
       </p>
       <ReplayView replays={replays} />
     </main>
