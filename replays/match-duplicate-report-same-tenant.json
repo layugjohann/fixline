@@ -1,0 +1,173 @@
+{
+  "id": "match-duplicate-report-same-tenant",
+  "title": "Duplicate: the same dripping tap, reported again",
+  "description": "The same Tenant reports a problem already on the Board, so the Message attaches to it.",
+  "model": "scripted sample (mock model, no real model call)",
+  "message": {
+    "id": "msg-tap-duplicate",
+    "sender": {
+      "email": "maya.okafor@example.com",
+      "name": "Maya Okafor"
+    },
+    "receivedAt": "2026-11-12T08:40:00Z",
+    "body": "Hi, not sure if my last email got through, so writing again: the tap over my kitchen sink won't stop dripping. It's getting worse and I'm emptying a bowl under it twice a day now."
+  },
+  "board": [
+    {
+      "id": "WO-1",
+      "location": {
+        "type": "unit",
+        "unitId": "quay-court-102"
+      },
+      "title": "Broken window latch",
+      "description": "Bedroom window latch won't close.",
+      "trade": "carpentry",
+      "urgency": "routine",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-1"
+      ]
+    },
+    {
+      "id": "WO-2",
+      "location": {
+        "type": "unit",
+        "unitId": "harbor-view-2a"
+      },
+      "title": "Dripping kitchen sink tap",
+      "description": "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
+      "trade": "plumbing",
+      "urgency": "urgent",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-2"
+      ],
+      "raisedByTenantId": "tenant-maya"
+    }
+  ],
+  "trace": {
+    "messageId": "msg-tap-duplicate",
+    "steps": [
+      {
+        "type": "model-turn",
+        "text": "Looking up the Sender."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "lookUpSender",
+        "input": {
+          "email": "maya.okafor@example.com"
+        },
+        "output": {
+          "found": true,
+          "tenant": {
+            "id": "tenant-maya",
+            "name": "Maya Okafor",
+            "email": "maya.okafor@example.com",
+            "phone": "+1 555 0101",
+            "unitId": "harbor-view-2a"
+          },
+          "unit": {
+            "id": "harbor-view-2a",
+            "propertyId": "harbor-view",
+            "label": "2A"
+          },
+          "property": {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "propertyId": "harbor-view",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "propertyId": "harbor-view",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "propertyId": "harbor-view",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "propertyId": "harbor-view",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "propertyId": "harbor-view",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "propertyId": "harbor-view",
+                "name": "Stairwell"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "model-turn",
+        "text": "Maya Okafor, Harbor View 2A. She says she's writing again, so this may already be on the Board."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "searchOpenWorkOrders",
+        "input": {
+          "unitId": "harbor-view-2a",
+          "query": "tap"
+        },
+        "output": [
+          {
+            "id": "WO-2",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-2a"
+            },
+            "title": "Dripping kitchen sink tap",
+            "description": "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
+            "trade": "plumbing",
+            "urgency": "urgent",
+            "status": "open",
+            "messageIds": [
+              "msg-seed-2"
+            ],
+            "raisedByTenantId": "tenant-maya"
+          }
+        ]
+      },
+      {
+        "type": "proposal",
+        "proposal": {
+          "classification": "maintenance",
+          "operations": [
+            {
+              "type": "attach",
+              "workOrderId": "WO-2",
+              "matchType": "same-tenant",
+              "information": "Tenant reports the kitchen tap drip is getting worse; she empties a bowl under it twice a day."
+            }
+          ],
+          "uncertain": false,
+          "draftReplies": [],
+          "reasoning": "Same Tenant, same dripping kitchen tap as the open WO-2, so the Message attaches to it instead of creating a duplicate."
+        }
+      },
+      {
+        "type": "routing",
+        "decision": {
+          "outcome": "auto-apply",
+          "rules": [],
+          "reason": "Clear new routine or urgent Work Order(s), or obvious same-Tenant matches."
+        }
+      }
+    ]
+  }
+}

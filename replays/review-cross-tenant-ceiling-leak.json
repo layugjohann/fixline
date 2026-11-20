@@ -1,0 +1,217 @@
+{
+  "id": "review-cross-tenant-ceiling-leak",
+  "title": "Ceiling leak: the Unit above writes about the Unit below's leak",
+  "description": "The Tenant above (2A) writes about the ceiling leak the Tenant below (1A) already reported: a match to another Tenant's Work Order, sent for review.",
+  "model": "scripted sample (mock model, no real model call)",
+  "message": {
+    "id": "msg-ceiling-leak-upstairs",
+    "sender": {
+      "email": "maya.okafor@example.com",
+      "name": "Maya Okafor"
+    },
+    "receivedAt": "2026-11-16T13:05:00Z",
+    "body": "Hi, Sam from 1A downstairs knocked on my door to say water is coming through his bathroom ceiling, apparently from my flat. I've had a look and can't see anything leaking in my bathroom, but I'm home all day tomorrow if the plumber needs to get in to check from my side."
+  },
+  "board": [
+    {
+      "id": "WO-1",
+      "location": {
+        "type": "unit",
+        "unitId": "quay-court-102"
+      },
+      "title": "Broken window latch",
+      "description": "Bedroom window latch won't close.",
+      "trade": "carpentry",
+      "urgency": "routine",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-1"
+      ]
+    },
+    {
+      "id": "WO-2",
+      "location": {
+        "type": "unit",
+        "unitId": "harbor-view-2a"
+      },
+      "title": "Dripping kitchen sink tap",
+      "description": "Kitchen sink tap drips constantly; small puddle under the cabinet each morning.",
+      "trade": "plumbing",
+      "urgency": "urgent",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-2"
+      ],
+      "raisedByTenantId": "tenant-maya"
+    },
+    {
+      "id": "WO-6",
+      "location": {
+        "type": "unit",
+        "unitId": "harbor-view-1a"
+      },
+      "title": "Water leaking through bathroom ceiling",
+      "description": "Water is dripping through the bathroom ceiling and there's a brown stain spreading around the light fitting. Probably coming from the flat above.",
+      "trade": "plumbing",
+      "urgency": "urgent",
+      "status": "open",
+      "messageIds": [
+        "msg-seed-6"
+      ],
+      "raisedByTenantId": "tenant-sam"
+    }
+  ],
+  "trace": {
+    "messageId": "msg-ceiling-leak-upstairs",
+    "steps": [
+      {
+        "type": "tool-call",
+        "toolName": "lookUpSender",
+        "input": {
+          "email": "maya.okafor@example.com"
+        },
+        "output": {
+          "found": true,
+          "tenant": {
+            "id": "tenant-maya",
+            "name": "Maya Okafor",
+            "email": "maya.okafor@example.com",
+            "phone": "+1 555 0101",
+            "unitId": "harbor-view-2a"
+          },
+          "unit": {
+            "id": "harbor-view-2a",
+            "propertyId": "harbor-view",
+            "label": "2A"
+          },
+          "property": {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "propertyId": "harbor-view",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "propertyId": "harbor-view",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "propertyId": "harbor-view",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "propertyId": "harbor-view",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "propertyId": "harbor-view",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "propertyId": "harbor-view",
+                "name": "Stairwell"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "model-turn",
+        "text": "Maya Okafor lives in 2A. The leak she describes is in 1A's bathroom ceiling, below her flat. Searching 1A's open Work Orders."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "searchOpenWorkOrders",
+        "input": {
+          "unitId": "harbor-view-1a",
+          "query": "ceiling leak"
+        },
+        "output": [
+          {
+            "id": "WO-6",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-1a"
+            },
+            "title": "Water leaking through bathroom ceiling",
+            "description": "Water is dripping through the bathroom ceiling and there's a brown stain spreading around the light fitting. Probably coming from the flat above.",
+            "trade": "plumbing",
+            "urgency": "urgent",
+            "status": "open",
+            "messageIds": [
+              "msg-seed-6"
+            ],
+            "raisedByTenantId": "tenant-sam"
+          }
+        ]
+      },
+      {
+        "type": "model-turn",
+        "text": "WO-6 is Sam Whitfield's ceiling leak in 1A. Reading it in full."
+      },
+      {
+        "type": "tool-call",
+        "toolName": "getWorkOrder",
+        "input": {
+          "workOrderId": "WO-6"
+        },
+        "output": {
+          "found": true,
+          "workOrder": {
+            "id": "WO-6",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-1a"
+            },
+            "title": "Water leaking through bathroom ceiling",
+            "description": "Water is dripping through the bathroom ceiling and there's a brown stain spreading around the light fitting. Probably coming from the flat above.",
+            "trade": "plumbing",
+            "urgency": "urgent",
+            "status": "open",
+            "messageIds": [
+              "msg-seed-6"
+            ],
+            "raisedByTenantId": "tenant-sam"
+          }
+        }
+      },
+      {
+        "type": "proposal",
+        "proposal": {
+          "classification": "maintenance",
+          "operations": [
+            {
+              "type": "attach",
+              "workOrderId": "WO-6",
+              "matchType": "cross-tenant",
+              "information": "The Tenant upstairs in 2A sees no leak in her bathroom but is home all day tomorrow if the plumber needs to check from her side."
+            }
+          ],
+          "uncertain": false,
+          "draftReplies": [],
+          "reasoning": "This is the same leak as WO-6, raised by Sam in 1A; the Message comes from the Unit above, so it is a match across Tenants for a Coordinator to confirm."
+        }
+      },
+      {
+        "type": "routing",
+        "decision": {
+          "outcome": "review",
+          "rules": [
+            "cross-tenant-match"
+          ],
+          "reason": "It matches a Work Order raised by a different Tenant."
+        }
+      }
+    ]
+  }
+}

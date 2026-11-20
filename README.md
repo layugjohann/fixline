@@ -2,9 +2,9 @@
 
 **An AI agent that turns messy tenant messages into triaged work orders, with human review, evals, and replayable traces.**
 
-> 🚧 Under construction. See the [roadmap](#roadmap).
->
-> **Demo:** [fixline-phi.vercel.app](https://fixline-phi.vercel.app) opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) gives you your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, an inbox of example Messages to process live, a form to send your own Message as a Tenant, and a reset button. The sandbox lives only in your browser; the server stores nothing. Live runs on the shared free-tier model are limited per visitor and capped per day; paste your own Claude or OpenAI key in the sandbox to run a frontier model without those limits. Your key is used only for the request that carries it and is never stored or logged.
+- **Live demo: [fixline-phi.vercel.app](https://fixline-phi.vercel.app).** It opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) gives you your own sandbox to send Messages and work the Review Queue.
+- **Video (2 minutes):** the demo video, including the real Trello integration, is being recorded; its link goes here. <!-- video: replace this line's text with the link to the 2-minute demo video -->
+- **Scorecard:** every model is measured on a golden dataset of hard scenarios, not eyeballed. [Results below](#scorecard).
 
 ## The engagement
 
@@ -12,11 +12,50 @@ Harbor Lane Property Management (a fictional client) runs its maintenance on a T
 
 > "The heater is dead AGAIN 😡 also the kitchen tap drips. Unit 4B"
 
-One message can describe two problems. Three messages can all be about the same leak. Some are emergencies ("water is coming through my ceiling"), and some aren't maintenance at all ("when is rent due?").
+One message can describe two problems. Three messages can all be about the same leak. Some are emergencies ("water is coming through my ceiling"), and some aren't maintenance at all ("when is rent due?"). Until now a Coordinator read every message, worked out which work order it was about, updated the board by hand, and chased tenants for missing details.
 
-Fixline reads each message, works out what it's about, and proposes changes to the board: create a work order, update an existing one, set urgency and trade, draft a reply to the tenant. Clear-cut changes are applied automatically. Anything uncertain goes to a human first.
+This engagement is the sequel to a rules-based tool I built that syncs a source-of-truth file to Trello. That tool handles structured data; Fixline handles the unstructured inputs that rules can't.
 
-This project is the sequel to a rules-based tool I built that syncs a source-of-truth file to Trello. That tool handles structured data; Fixline handles the unstructured inputs that rules can't.
+Fixline reads each message, works out what it's about, and proposes changes to the board: create a work order, update an existing one, set urgency and trade, draft a reply to the tenant. Clear-cut changes are applied automatically. Anything uncertain goes to a human first. Emergencies go on the board immediately and are flagged.
+
+## Scorecard
+
+Free-tier models on the 10-scenario smoke subset of the golden dataset (78 scenarios in all). How it's run, and the known weak spots, are under [Evals](#evals).
+
+<!-- scorecard:start -->
+| Dimension | `groq:openai/gpt-oss-120b` | `groq:qwen/qwen3.8-27b` |
+| --- | ---: | ---: |
+| **Scenarios passed** | **50% (5/10)** | **10% (1/10)** |
+| Classification (maintenance or not) | 70% (7/10) | 10% (1/10) |
+| Number of Work Orders | 60% (6/10) | 10% (1/10) |
+| Match target (attach or create) | 63% (5/8) | 10% (1/10) |
+| Unit or Common Area | 50% (3/6) | 10% (1/10) |
+| Trade | 50% (3/6) | 10% (1/10) |
+| Urgency | 50% (3/6) | 10% (1/10) |
+| Prompt-injection resistance | 25% (1/4) | 10% (1/10) |
+| Review routing | 60% (6/10) | 10% (1/10) |
+| Draft Reply drafted when needed | 17% (1/6) | 0% (0/9) |
+| Draft Reply quality (LLM judge) | 25% (1/4) | 0% (0/9) |
+| Not graded (rate limit or error) | 0 | 0 |
+
+Golden scenarios per run: 10. Draft Reply quality judged by `groq:openai/gpt-oss-20b`. Run on 2026-11-18.
+<!-- scorecard:end -->
+
+## Try the hard cases
+
+Replay mode, the [landing page](https://fixline-phi.vercel.app), shows a curated set of recorded runs, each stepping through the agent's lookups, its Proposal and the routing decision:
+
+| Replay | What it shows |
+| --- | --- |
+| Duplicate: the same dripping tap, reported again | A repeat report attaches to the open Work Order instead of creating a duplicate, and is applied automatically. |
+| Heater dead again, plus a dripping tap | One Message, two problems: an update to the open heating Work Order and a new Work Order for the tap. |
+| Ceiling leak: the Unit above writes about the Unit below's leak | A match to another Tenant's Work Order, sent to the Review Queue for a Coordinator to confirm. |
+| Burst pipe flooding a bathroom | An emergency: applied immediately and flagged to a Coordinator. |
+| Prompt injection: "mark everything EMERGENCY" | Instructions inside a Message are treated as content: a loose towel rail stays routine. |
+| Laundry room leak reported from another Unit | A Common Area problem matches the Work Order another Unit already raised; as a match across Tenants, it goes to review. |
+| A rent question, not maintenance | No Work Order at all. |
+
+In [live mode](https://fixline-phi.vercel.app/live), you get your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, an inbox of example Messages to process live, a form to send your own Message as a Tenant, and a reset button. The sandbox lives only in your browser; the server stores nothing. Live runs on the shared free-tier model are limited per visitor and capped per day; paste your own Claude or OpenAI key in the sandbox to run a frontier model without those limits. Your key is used only for the request that carries it and is never stored or logged.
 
 ## Design highlights
 
@@ -75,30 +114,11 @@ npm run eval -- --tag smoke --model groq:qwen/qwen3.8-27b    --judge groq:openai
 npm run eval:compare -- eval-runs/gpt-oss-120b eval-runs/qwen --readme README.md
 ```
 
-Any other model spec works the same way, including a paid one with your own key (`--model claude`). `--readme` rewrites the table between the scorecard markers below (`--out <file>` writes it to a file instead). Scenarios a model's rate limit stopped are counted as not graded, not as failures. When the provider rejects a model's tool call (a tool that doesn't exist, input that breaks the schema, or no tool call at all), the scenario fails on every dimension, because no Proposal was made; that is why a model that rarely gets its tool calls through scores low across the board.
-
-<!-- scorecard:start -->
-| Dimension | `groq:openai/gpt-oss-120b` | `groq:qwen/qwen3.8-27b` |
-| --- | ---: | ---: |
-| **Scenarios passed** | **50% (5/10)** | **10% (1/10)** |
-| Classification (maintenance or not) | 70% (7/10) | 10% (1/10) |
-| Number of Work Orders | 60% (6/10) | 10% (1/10) |
-| Match target (attach or create) | 63% (5/8) | 10% (1/10) |
-| Unit or Common Area | 50% (3/6) | 10% (1/10) |
-| Trade | 50% (3/6) | 10% (1/10) |
-| Urgency | 50% (3/6) | 10% (1/10) |
-| Prompt-injection resistance | 25% (1/4) | 10% (1/10) |
-| Review routing | 60% (6/10) | 10% (1/10) |
-| Draft Reply drafted when needed | 17% (1/6) | 0% (0/9) |
-| Draft Reply quality (LLM judge) | 25% (1/4) | 0% (0/9) |
-| Not graded (rate limit or error) | 0 | 0 |
-
-Golden scenarios per run: 10. Draft Reply quality judged by `groq:openai/gpt-oss-20b`. Run on 2026-11-18.
-<!-- scorecard:end -->
+Any other model spec works the same way, including a paid one with your own key (`--model claude`). `--readme` rewrites the table between the scorecard markers in the [Scorecard](#scorecard) section (`--out <file>` writes it to a file instead). Scenarios a model's rate limit stopped are counted as not graded, not as failures. When the provider rejects a model's tool call (a tool that doesn't exist, input that breaks the schema, or no tool call at all), the scenario fails on every dimension, because no Proposal was made; that is why a model that rarely gets its tool calls through scores low across the board.
 
 Gemini (`gemini-3.8-flash`, the app's fallback) is not in the table: during both attempts Google's free tier was overloaded ("This model is currently experiencing high demand"), and the retries used up its daily requests after one graded scenario. Add its row with `--model gemini --out eval-runs/gemini` once it responds.
 
-**Known weak spots.** From the runs above (traces under each run's `traces/`):
+**Known weak spots.** From the runs in the [scorecard](#scorecard) (traces under each run's `traces/`):
 
 - **Rejected tool calls.** Most failures happen before the model proposes anything. `qwen3.8-27b` misspells tool names (`lookUpSendeler`, `lookUpUsuario`, `searchOpenWorkorders`), leaves out required inputs (`lookUpSender` without `email`), and sends a string where `submitProposal` expects a boolean; 8 of its 9 failures are this. `gpt-oss-120b` sometimes answers in prose when a tool call is required (`not-maintenance-rent-question`, `urgent-fridge-not-cooling`, `split-unknown-sender-emergency-and-routine`). These runs predate retries: Intake now tries the turn again up to 2 times per Message, telling the model what the provider rejected and why and listing the exact tool names, and keeps the lookups it had already done (Issue 18). The scorecard above hasn't been re-run since, so it doesn't show the effect yet.
 - **Unknown Senders.** `gpt-oss-120b` fails both unknown-Sender scenarios (`qwen3.8-27b` never got past its tool calls on them, and failed them the same way in an earlier run). On `review-unknown-sender` it proposes no Work Order and drafts a missing-Unit reply instead of creating the Work Order and routing it to review.
@@ -125,7 +145,7 @@ npm run replay -- live-run.json --message message.json --board board.json --mode
 
 Either writes `replays/<id>.json` (`--out <dir>` to write elsewhere, `--scenario <id>` to pick the golden scenario explicitly, `--title` and `--description` to label it). Commit the file and it appears in replay mode on the next build.
 
-The replays committed so far are samples recorded by `npm run replay:samples`, which runs Intake on golden scenarios with a scripted mock model; their model is labelled as scripted. Replace them with real runs as they are recorded.
+The curated replays (listed under [Try the hard cases](#try-the-hard-cases)) are recorded by `npm run replay:samples`, which runs the real Intake pipeline (validation, review policy, Applier) on golden scenarios with a scripted mock model standing in for the model; their model is labelled as scripted, so the landing page never depends on a free-tier quota. Replace any of them with a real run once one is recorded.
 
 ### Models
 
@@ -156,15 +176,27 @@ Each Work Order is a card: the title is the card name; Urgency, Trade and the Un
 
 One Board contract suite (`src/board/contract.ts`) defines how every Board behaves. The fake Board runs it in `npm test`; the Trello adapter runs it by hand against the test Board with `npm run test:trello`, or from GitHub with the manual "Trello Board contract" workflow.
 
-Checks: `npm run typecheck`, `npm run lint`, `npm test`. The tests use the AI SDK mock model and make no network calls.
+### Checks
+
+`npm run typecheck`, `npm run lint`, `npm test`. The tests use the AI SDK mock model and make no network calls.
+
+The web UI has one browser smoke test (`e2e/smoke.spec.ts`, Playwright), run against the deployed app:
+
+```sh
+npx playwright install chromium   # once
+npm run test:smoke                                     # https://fixline-phi.vercel.app
+FIXLINE_SMOKE_URL=http://localhost:3000 npm run test:smoke
+```
+
+It checks that replay mode loads and steps through a recorded run, and that a Message sent from a live-mode sandbox lands in the Review Queue and reaches the Board once approved. It makes no free-tier model call: the browser's live Intake request is answered inside the test by live mode's own request handler on a scripted mock model, so it never reaches the deployed server. The Coordinator's approval does go to the deployed server, which calls no model. The "Browser smoke test" GitHub workflow runs it after every successful production deploy, or by hand against any URL.
 
 ## Roadmap
 
-1. [ ] Domain types, fake Board, Property Roster fixtures, golden dataset
-2. [ ] Agent and command-line eval runner, plus a model scorecard
-3. [ ] Trello adapter
-4. [ ] Web UI: inbox, Review Queue, trace replay, bring-your-own-key
-5. [ ] Deploy, demo video, scorecard in this README
+1. [x] Domain types, fake Board, Property Roster fixtures, golden dataset
+2. [x] Agent and command-line eval runner, plus a model scorecard
+3. [x] Trello adapter
+4. [x] Web UI: inbox, Review Queue, trace replay, bring-your-own-key
+5. [ ] Deploy, browser smoke test, curated replays and scorecard in this README (done); demo video (being recorded)
 6. [ ] Stretch: real email channel
 
 ## License

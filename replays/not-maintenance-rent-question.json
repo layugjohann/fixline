@@ -99,6 +99,7 @@
           "classification": "not-maintenance",
           "operations": [],
           "uncertain": false,
+          "draftReplies": [],
           "reasoning": "The Message asks about rent, not a maintenance problem, so no Work Order is proposed."
         }
       },

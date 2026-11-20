@@ -1,0 +1,102 @@
+/**
+ * The one browser smoke test, run against the deployed app (see playwright.config.ts).
+ *
+ * Replay mode must load and step through a recorded run. In live mode, a Message sent
+ * from the sandbox must flow through to the Review Queue and on to the Board. The live
+ * Intake request is intercepted and answered in this process by live mode's own request
+ * handler on a scripted mock model, so the test never makes a free-tier model call.
+ * The Coordinator's approval goes to the deployed server, which calls no model.
+ */
+import { expect, test } from "@playwright/test";
+import { MockLanguageModelV4 } from "ai/test";
+import type { Proposal } from "@/domain";
+import { createLiveIntakeHandler } from "@/live";
+
+const usage = {
+  inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+  outputTokens: { total: 0, text: 0, reasoning: undefined },
+};
+
+/** The Proposal the scripted model submits for the smoke test's Message. */
+const PROPOSAL: Proposal = {
+  classification: "maintenance",
+  uncertain: false,
+  draftReplies: [],
+  operations: [
+    {
+      type: "create",
+      location: { type: "unit", unitId: "harbor-view-3b" },
+      title: "Smoke test: bedroom window won't close",
+      description: "The bedroom window in 3B won't close fully and lets in a draught.",
+      trade: "carpentry",
+      urgency: "routine",
+    },
+  ],
+  reasoning: "A routine window repair in 3B; the Sender isn't in the Property Roster.",
+};
+
+/** A model that looks the Sender up, then submits PROPOSAL. A fresh one per run. */
+function scriptedModel(email: string): MockLanguageModelV4 {
+  const turn = (toolCallId: string, toolName: string, input: unknown) => ({
+    content: [{ type: "tool-call" as const, toolCallId, toolName, input: JSON.stringify(input) }],
+    finishReason: { unified: "tool-calls" as const, raw: undefined },
+    usage,
+    warnings: [],
+  });
+  return new MockLanguageModelV4({
+    doGenerate: [turn("call-1", "lookUpSender", { email }), turn("call-2", "submitProposal", PROPOSAL)],
+  });
+}
+
+test("replay mode loads and steps through a recorded run", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Fixline", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Recorded run:")).toBeVisible();
+
+  const trace = page.getByRole("region", { name: "Trace" });
+  await expect(trace.getByText(/^Step 1 of \d+$/)).toBeVisible();
+  await trace.getByRole("button", { name: "Show all" }).click();
+  await expect(trace.getByText(/^Routing decision: /)).toBeVisible();
+});
+
+test("a sandbox Message flows through the Review Queue to the Board", async ({ page }) => {
+  const sender = "new.tenant@example.com";
+  const handler = createLiveIntakeHandler({
+    limiter: { take: () => Promise.resolve({ allowed: true }) },
+    sharedModel: () => ({ model: scriptedModel(sender), name: "scripted mock model (smoke test)" }),
+    ownModel: () => {
+      throw new Error("The smoke test never uses a visitor's own key.");
+    },
+  });
+  let intakeRequests = 0;
+  await page.route("**/api/intake", async (route) => {
+    intakeRequests += 1;
+    const response = await handler(
+      new Request("http://smoke.test/api/intake", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: route.request().postData() ?? "",
+      }),
+    );
+    await route.fulfill({ status: response.status, contentType: "application/json", body: await response.text() });
+  });
+
+  await page.goto("/live");
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+
+  await page.getByLabel("Sender:").selectOption({ label: "Someone not in the Property Roster…" });
+  await page.getByLabel("Email:").fill(sender);
+  await page.getByLabel("Message:").fill("Hi, I'm subletting 3B. The bedroom window won't close and it's freezing.");
+  await page.getByRole("button", { name: "Send and process with Intake" }).click();
+
+  const queue = page.locator("h2:text-is('Review Queue') + ul > li").filter({ hasText: sender });
+  await expect(queue).toContainText("Sender not in the Property Roster");
+  await expect(queue).toContainText("Smoke test: bedroom window won't close");
+  expect(intakeRequests).toBe(1);
+
+  const board = page.locator("h2:text-is('Board') + ul");
+  await expect(board).not.toContainText("Smoke test: bedroom window won't close");
+  await queue.getByRole("button", { name: "Approve" }).click();
+  await expect(board).toContainText("Smoke test: bedroom window won't close");
+  await expect(page.locator("h2:text-is('Review Queue') + ul > li").filter({ hasText: sender })).toHaveCount(0);
+});
