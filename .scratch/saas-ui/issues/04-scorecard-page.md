@@ -9,7 +9,8 @@
 
 **Blocked by:** 01
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/22
 
 - [x] Model comparison built from the committed scorecard files at build time
 - [x] Per-scenario grid
@@ -31,3 +32,5 @@ Usage: Implementer 58 input, 26,927 output, 77,138 cache creation, 1,749,606 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-04-2026-11-20T21-23-30-886Z.log`).
 
 Usage: Body writer 2 input, 1,174 output, 28,476 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/22
