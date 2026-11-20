@@ -11,7 +11,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Model comparison built from the committed scorecard files at build time
-- [ ] Per-scenario grid
-- [ ] Clicking a scenario opens its eval trace
-- [ ] A test covers turning a scorecard file into the page's data
+- [x] Model comparison built from the committed scorecard files at build time
+- [x] Per-scenario grid
+- [x] Clicking a scenario opens its eval trace
+- [x] A test covers turning a scorecard file into the page's data

@@ -38,8 +38,8 @@ interface NavItem {
 
 /** The pages each workspace has built so far; the rest show as coming soon. */
 const WORKSPACE_PAGES: Record<Workspace, readonly string[]> = {
-  demo: ["review-queue", "board", "property-roster", "runs"],
-  sandbox: ["incoming-messages", "review-queue", "board", "property-roster"],
+  demo: ["review-queue", "board", "property-roster", "runs", "scorecard"],
+  sandbox: ["incoming-messages", "review-queue", "board", "property-roster", "scorecard"],
 };
 
 /** The rail's navigation, in glossary terms, grouped as Work, Reference and Agent. */
@@ -57,7 +57,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Agent",
     items: [
       { label: "Runs", icon: <Activity />, page: "runs" },
-      { label: "Scorecard", icon: <ChartColumn /> },
+      { label: "Scorecard", icon: <ChartColumn />, page: "scorecard" },
     ],
   },
 ];
