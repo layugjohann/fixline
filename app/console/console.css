@@ -1,5 +1,5 @@
 /*
- * The console's design system: Tailwind v4 with shadcn/ui's token names.
+ * The design system for the landing page and the console: Tailwind v4 with shadcn/ui's token names.
  * Teal accent on stone neutrals. Light by default; dark when <html> has the
  * `dark` class, which the console's theme script sets from the system
  * preference or the visitor's choice (see app/console/theme.tsx).

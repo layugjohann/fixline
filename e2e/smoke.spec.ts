@@ -1,7 +1,7 @@
 /**
  * The one browser smoke test, run against the deployed app (see playwright.config.ts).
  *
- * The console's Demo workspace must load and step through a recorded run. In the sandbox workspace,
+ * The landing page's Demo button must open the console's Demo workspace, which steps through a recorded run. In the sandbox workspace,
  * a Message sent from the sandbox must flow through to the Review Queue and on to the Board. The live
  * Intake request is intercepted and answered in this process by live mode's own request
  * handler on a scripted mock model, so the test never makes a free-tier model call.
@@ -48,10 +48,12 @@ function scriptedModel(email: string): MockLanguageModelV4 {
   });
 }
 
-test("the Demo workspace steps through a recorded run", async ({ page }) => {
+test("the landing page opens the Demo workspace, which steps through a recorded run", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Fixline", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Open the console" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "An AI agent that turns messy tenant messages into triaged Work Orders." }),
+  ).toBeVisible();
+  await page.getByRole("main").getByRole("link", { name: "Open the Demo" }).click();
 
   await expect(page.getByRole("heading", { name: "Review Queue", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Proposal" })).toBeVisible();

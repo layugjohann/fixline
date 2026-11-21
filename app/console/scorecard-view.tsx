@@ -1,4 +1,4 @@
-import { formatRatio, type Ratio, type ScorecardPageData } from "@/console/scorecard";
+import { formatPercent, formatRatio, type Ratio, type ScorecardPageData } from "@/console/scorecard";
 import { cn } from "@/lib/utils";
 import { ScenarioGrid } from "./scenario-grid";
 
@@ -118,7 +118,7 @@ function Meter({ ratio, strong = false }: { ratio: Ratio; strong?: boolean }) {
         className={cn("h-1.5 w-full max-w-40 overflow-hidden rounded-full", ratio.score === null ? "bg-muted/60" : "bg-muted")}
       >
         {ratio.score !== null && (
-          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(ratio.score * 100)}%` }} />
+          <div className="h-full rounded-full bg-primary" style={{ width: formatPercent(ratio.score) }} />
         )}
       </div>
       <span

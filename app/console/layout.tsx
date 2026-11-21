@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import "./console.css";
 
 export const metadata: Metadata = {
   title: "Fixline console",
 };
 
-/** The console takes the whole window, over the root layout's centred column. */
+/** The console takes the whole window. */
 export default function ConsoleLayout({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider delayDuration={150}>

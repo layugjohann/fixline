@@ -185,7 +185,12 @@ export function scorecardPageData(runs: readonly EvalRunFiles[]): ScorecardPageD
   };
 }
 
+/** A 0–1 score as a whole percentage, e.g. "63%". */
+export function formatPercent(score: number): string {
+  return `${Math.round(score * 100)}%`;
+}
+
 /** "63% · 5/8", or "Not graded" when nothing was. */
 export function formatRatio({ passed, graded, score }: Ratio): string {
-  return score === null ? "Not graded" : `${Math.round(score * 100)}% · ${passed}/${graded}`;
+  return score === null ? "Not graded" : `${formatPercent(score)} · ${passed}/${graded}`;
 }
