@@ -10,7 +10,7 @@ import { TraceSchema, type Message, type WorkOrder } from "@/domain";
 import { createReplay, parseReplay, type Replay } from "./index";
 
 /**
- * Where recorded replays live. Every `*.json` file here is shown in replay mode.
+ * Where recorded replays live. Every `*.json` file here is shown in the Demo workspace.
  * The landing page reads them at build time, so the server never needs these files
  * at runtime; turbopackIgnore stops the build tracing the whole project because of it.
  */

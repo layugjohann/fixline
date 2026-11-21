@@ -21,7 +21,7 @@ import {
   type QueueTab,
   type SandboxEntry,
 } from "@/console";
-import { AgentRun } from "../../agent-run";
+import { AGENT_RUN_RAIL_CLASS, AgentRun } from "../../agent-run";
 import { Conversation, Kbd, QueuePane } from "../../review-queue-panes";
 import { useSandboxWorkspace, type SandboxWorkspace } from "../sandbox-context";
 
@@ -61,7 +61,7 @@ export function ReviewQueueView() {
           {selected.trace ? (
             <AgentRun key={`run-${selected.id}`} trace={selected.trace} model="Live run" layout="rail" startAt="last" />
           ) : (
-            <section aria-label="Agent run" className="flex w-[380px] shrink-0 flex-col border-l bg-muted/40">
+            <section aria-label="Agent run" className={AGENT_RUN_RAIL_CLASS}>
               <div className="flex items-center gap-2 border-b px-4 py-3">
                 <Activity className="size-4 text-primary" />
                 <h2 className="font-semibold">Agent run</h2>
@@ -154,7 +154,7 @@ function DecisionBar({ entry, workspace }: { entry: SandboxEntry; workspace: San
 
   if (!decidable || !entryId) {
     return (
-      <footer className="flex items-center gap-2 border-t bg-card px-6 py-3 text-muted-foreground">
+      <footer className="flex items-center gap-2 border-t bg-card px-4 py-3 sm:px-6 text-muted-foreground">
         <CircleCheck className="size-4 text-primary" />
         {QUEUE_STATUS_LABELS[entry.status]}
         {queueTab(entry.status) === "auto-handled" && entry.reviewEntryId === undefined
@@ -166,7 +166,7 @@ function DecisionBar({ entry, workspace }: { entry: SandboxEntry; workspace: San
 
   const draftReplies = entry.proposal?.draftReplies.length ?? 0;
   return (
-    <footer aria-label="Decision" className="flex flex-wrap items-center gap-2 border-t bg-card px-6 py-3">
+    <footer aria-label="Decision" className="flex flex-wrap items-center gap-2 border-t bg-card px-4 py-3 sm:px-6">
       <Button
         disabled={busy}
         aria-keyshortcuts="A"

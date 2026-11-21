@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { pendingCount } from "@/console";
+import { ConsoleMain } from "../console-main";
 import { ConsoleRail } from "../console-rail";
 import { loadDemoEntries } from "./data";
 
@@ -9,7 +10,7 @@ export default async function DemoLayout({ children }: { children: ReactNode }) 
   return (
     <>
       <ConsoleRail workspace="demo" pendingCount={pendingCount(entries)} />
-      <main className="flex min-w-0 flex-1">{children}</main>
+      <ConsoleMain>{children}</ConsoleMain>
     </>
   );
 }

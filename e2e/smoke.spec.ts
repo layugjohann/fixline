@@ -3,7 +3,7 @@
  *
  * The landing page's Demo button must open the console's Demo workspace, which steps through a recorded run. In the sandbox workspace,
  * a Message sent from the sandbox must flow through to the Review Queue and on to the Board. The live
- * Intake request is intercepted and answered in this process by live mode's own request
+ * Intake request is intercepted and answered in this process by the live Intake request
  * handler on a scripted mock model, so the test never makes a free-tier model call.
  * The Coordinator's approval goes to the deployed server, which calls no model.
  */
@@ -124,4 +124,20 @@ test("a sandbox Message flows through the Review Queue to the Board", async ({ p
 
   await rail.getByRole("link", { name: "Board", exact: true }).click();
   await expect(board).toContainText("Smoke test: bedroom window won't close");
+});
+
+test.describe("below lg", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("the console's navigation opens as a drawer", async ({ page }) => {
+    await page.goto("/console/demo/review-queue");
+    await expect(page.getByRole("heading", { name: "Review Queue", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Conversation" })).toBeVisible();
+
+    await page.getByRole("button", { name: /^Open navigation/ }).click();
+    const drawer = page.getByRole("dialog", { name: "Console navigation" });
+    await drawer.getByRole("navigation", { name: "Console" }).getByRole("link", { name: "Board", exact: true }).click();
+    await expect(drawer).toBeHidden();
+    await expect(page.getByRole("region", { name: "Board", exact: true })).toBeVisible();
+  });
 });

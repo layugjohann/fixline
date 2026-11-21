@@ -77,7 +77,10 @@ export function QueuePane({
   }
 
   return (
-    <section aria-labelledby="review-queue-heading" className="flex w-80 shrink-0 flex-col border-r bg-card">
+    <section
+      aria-labelledby="review-queue-heading"
+      className="flex max-h-[45vh] shrink-0 flex-col border-b bg-card lg:max-h-none lg:w-80 lg:border-r lg:border-b-0"
+    >
       <div className="border-b p-3">
         <div className="flex items-center justify-between gap-2">
           <h1 id="review-queue-heading" className="text-base font-semibold">
@@ -109,16 +112,29 @@ export function QueuePane({
           })}
         </div>
       </div>
-      <ul id="queue-list" role="tabpanel" aria-labelledby={`queue-tab-${tab}`} className="flex-1 overflow-y-auto">
+      <ul id="queue-list" role="tabpanel" aria-labelledby={`queue-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
         {visible.length === 0 && <li className="p-4 text-muted-foreground">Nothing here.</li>}
         {visible.map((entry) => (
           <li key={entry.id}>
-            <QueueItem entry={entry} selected={entry.id === selectedId} onSelect={() => onSelect(entry.id)} />
+            <QueueItem
+              entry={entry}
+              selected={entry.id === selectedId}
+              onSelect={() => {
+                onSelect(entry.id);
+                showConversation();
+              }}
+            />
           </li>
         ))}
       </ul>
     </section>
   );
+}
+
+/** Below `lg` the panes stack, so choosing an entry scrolls its conversation into view. */
+function showConversation() {
+  if (window.matchMedia("(min-width: 64rem)").matches) return;
+  requestAnimationFrame(() => document.getElementById("conversation")?.scrollIntoView({ block: "start" }));
 }
 
 function QueueItem({ entry, selected, onSelect }: { entry: QueueEntry; selected: boolean; onSelect: () => void }) {
@@ -185,14 +201,14 @@ export function Conversation({
   const proposal = entry.proposal;
 
   return (
-    <section aria-label="Conversation" className="flex min-w-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b bg-card px-6 py-3">
+    <section id="conversation" aria-label="Conversation" className="flex shrink-0 flex-col lg:min-w-0 lg:flex-1 lg:shrink">
+      <header className="flex items-center gap-3 border-b bg-card px-4 py-3 sm:px-6">
         <span aria-hidden className="grid size-9 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
           {initials(name)}
         </span>
         <div className="min-w-0">
           <h2 className="truncate font-semibold">{name}</h2>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
             {tenant ? (
               <>
                 <User className="size-3" /> Tenant · {locationName({ type: "unit", unitId: tenant.unitId })}
@@ -204,13 +220,13 @@ export function Conversation({
             )}
           </div>
         </div>
-        <div className="ml-auto text-right text-xs text-muted-foreground">
+        <div className="ml-auto hidden text-right text-xs text-muted-foreground sm:block">
           <div className="truncate">{entry.title}</div>
           <div>{QUEUE_STATUS_LABELS[entry.status]}</div>
         </div>
       </header>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+      <div className="space-y-5 px-4 py-6 sm:px-6 lg:flex-1 lg:overflow-y-auto">
         <article aria-label="Message" className="max-w-2xl rounded-2xl rounded-tl-sm bg-card px-4 py-3 shadow-sm ring-1 ring-border">
           <p className="leading-relaxed whitespace-pre-wrap">{entry.message.body}</p>
           <div className="mt-2 text-[11px] text-muted-foreground">
@@ -270,7 +286,8 @@ export function Conversation({
         ))}
       </div>
 
-      {footer}
+      {/* Below `lg` the conversation scrolls with the page, so the decision bar sticks to the bottom of the window. */}
+      <div className="sticky bottom-0 z-10 lg:static">{footer}</div>
     </section>
   );
 }

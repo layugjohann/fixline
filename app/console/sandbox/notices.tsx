@@ -22,7 +22,7 @@ const TONES: Record<Notice["tone"], { icon: ReactNode; className: string }> = {
 /** The workspace's toasts, newest at the bottom. Errors and limits stay until dismissed. */
 export function Notices({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id: number) => void }) {
   return (
-    <section aria-label="Notifications" className="pointer-events-none fixed right-4 bottom-4 z-40 flex w-96 flex-col gap-2">
+    <section aria-label="Notifications" className="pointer-events-none fixed right-4 bottom-4 left-4 z-40 flex flex-col gap-2 sm:left-auto sm:w-96">
       {notices.map((notice) => (
         <div
           key={notice.id}

@@ -50,7 +50,7 @@ export function ReviewQueueView({ entries }: { entries: DemoEntry[] }) {
 function DecisionBar({ entry }: { entry: DemoEntry }) {
   if (queueTab(entry.status) === "auto-handled") {
     return (
-      <footer className="flex items-center gap-2 border-t bg-card px-6 py-3 text-muted-foreground">
+      <footer className="flex items-center gap-2 border-t bg-card px-4 py-3 sm:px-6 text-muted-foreground">
         <CircleCheck className="size-4 text-primary" />
         {QUEUE_STATUS_LABELS[entry.status]}: no Coordinator action needed.
       </footer>
@@ -59,7 +59,7 @@ function DecisionBar({ entry }: { entry: DemoEntry }) {
 
   const flagged = entry.status === "flagged";
   return (
-    <footer aria-label="Decision" className="flex flex-wrap items-center gap-2 border-t bg-card px-6 py-3">
+    <footer aria-label="Decision" className="flex flex-wrap items-center gap-2 border-t bg-card px-4 py-3 sm:px-6">
       <Button disabled>
         {flagged ? <Eye /> : <Check />} {flagged ? "Acknowledge" : "Approve & apply"} <Kbd>A</Kbd>
       </Button>

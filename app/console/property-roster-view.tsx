@@ -5,7 +5,7 @@ import type { PropertyRoster } from "@/domain";
 export function PropertyRosterView({ roster, badge }: { roster: PropertyRoster; badge: string }) {
   return (
     <div className="min-w-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-5xl space-y-6 px-6 py-6">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
         <header>
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold">Property Roster</h1>

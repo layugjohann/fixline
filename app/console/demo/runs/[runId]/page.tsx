@@ -29,7 +29,7 @@ export default async function DemoRunPage({ params }: Params) {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <header className="border-b bg-card px-6 py-4">
+      <header className="border-b bg-card px-4 py-4 sm:px-6">
         <Link href="/console/demo/runs" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-3" /> All runs
         </Link>
