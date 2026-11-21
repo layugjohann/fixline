@@ -12,7 +12,7 @@
 
 **Blocked by:** 01, 04
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/23
 
 - [ ] `/` is the landing page and its buttons open the Demo and sandbox workspaces
