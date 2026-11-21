@@ -50,7 +50,9 @@ function scriptedModel(email: string): MockLanguageModelV4 {
 
 test("the landing page opens the Demo workspace, which steps through a recorded run", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Work Orders");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "An AI agent that turns messy tenant messages into triaged Work Orders." }),
+  ).toBeVisible();
   await page.getByRole("main").getByRole("link", { name: "Open the Demo" }).click();
 
   await expect(page.getByRole("heading", { name: "Review Queue", exact: true })).toBeVisible();

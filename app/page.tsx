@@ -167,7 +167,7 @@ export default async function Home() {
                     {model.notGraded > 0 && <> · {model.notGraded} not graded</>}
                   </div>
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${(model.scenariosPassed.score ?? 0) * 100}%` }} />
+                    <div className="h-full rounded-full bg-primary" style={{ width: formatPercent(model.scenariosPassed.score ?? 0) }} />
                   </div>
                   <div className="mt-2 text-xs text-muted-foreground">
                     Run <time dateTime={model.startedAt}>{model.startedAt.slice(0, 10)}</time> · {model.scenarioCount} scenarios
