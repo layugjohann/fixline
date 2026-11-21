@@ -10,7 +10,8 @@
 
 **Blocked by:** 02, 03, 04, 05
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/24
 
 - [ ] Console usable below `lg` with a drawer rail and stacked panes
 - [ ] Dead UI code removed
@@ -46,3 +47,5 @@ Usage: Implementer 30 input, 4,503 output, 29,068 cache creation, 385,939 cache 
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-06-2026-11-21T18-58-55-815Z.log`).
 
 Usage: Body writer 2 input, 1,154 output, 37,928 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/24
