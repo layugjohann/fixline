@@ -23,7 +23,7 @@ export default async function DemoRunsPage() {
   const entries = await loadDemoEntries();
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-8 py-8">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
         <h1 className="text-xl font-semibold">Runs</h1>
         <p className="mt-1 text-muted-foreground">
           Recorded Intake runs. Open one to step through what the agent looked up, what it proposed, and what the

@@ -20,7 +20,7 @@ export async function ScorecardTrace({ runId, scenarioId, base }: { runId: strin
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <header className="border-b bg-card px-6 py-4">
+      <header className="border-b bg-card px-4 py-4 sm:px-6">
         <Link href={`${base}/scorecard`} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-3" /> Scorecard
         </Link>

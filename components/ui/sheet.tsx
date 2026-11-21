@@ -10,11 +10,20 @@ function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
 
+function SheetTrigger({ ...props }: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
+  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />
+}
+
 function SheetClose({ ...props }: React.ComponentProps<typeof SheetPrimitive.Close>) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
 }
 
-function SheetContent({ className, children, ...props }: React.ComponentProps<typeof SheetPrimitive.Content>) {
+function SheetContent({
+  className,
+  children,
+  side = "right",
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Content> & { side?: "left" | "right" }) {
   return (
     <SheetPrimitive.Portal>
       <SheetPrimitive.Overlay
@@ -24,7 +33,10 @@ function SheetContent({ className, children, ...props }: React.ComponentProps<ty
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col gap-4 overflow-y-auto border-l bg-background text-sm text-foreground shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:duration-300 data-[state=open]:slide-in-from-right sm:max-w-md",
+          "fixed inset-y-0 z-50 flex h-full w-full flex-col gap-4 overflow-y-auto bg-background text-sm text-foreground shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:animate-in data-[state=open]:duration-300 sm:max-w-md",
+          side === "right"
+            ? "right-0 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right"
+            : "left-0 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
           className
         )}
         {...props}
@@ -53,4 +65,4 @@ function SheetDescription({ className, ...props }: React.ComponentProps<typeof S
   )
 }
 
-export { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetDescription }
+export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetDescription }

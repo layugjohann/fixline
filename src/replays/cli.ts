@@ -1,5 +1,5 @@
 /**
- * Turn a saved trace into a replay that replay mode serves.
+ * Turn a saved trace into a replay that the Demo workspace serves.
  *
  *   npm run replay -- eval-runs/<run>/traces/emergency-burst-pipe.json
  *   npm run replay -- run.json --message message.json --board board.json --id my-run --title "My run"

@@ -8,7 +8,7 @@ const SandboxWorkspaceShell = dynamic(() => import("./workspace").then((module) 
   ssr: false,
   loading: () => (
     <>
-      <div className="w-16 shrink-0 bg-rail" />
+      <div className="h-14 shrink-0 bg-rail lg:h-auto lg:w-16" />
       <p className="m-auto text-muted-foreground">Loading your sandbox…</p>
     </>
   ),

@@ -29,6 +29,9 @@ import type { Proposal, Trace, TraceStep } from "@/domain";
 import { cn } from "@/lib/utils";
 import { locationName } from "../location-name";
 
+/** The agent-run rail beside the Review Queue's conversation: a column from `lg` up, stacked under it below. */
+export const AGENT_RUN_RAIL_CLASS = "flex shrink-0 flex-col border-t bg-muted/40 lg:w-[380px] lg:border-t-0 lg:border-l";
+
 const STEP_ICONS: Record<StepKind, ReactNode> = {
   "model-turn": <Bot />,
   "tool-call": <Terminal />,
@@ -118,7 +121,7 @@ export function AgentRun({
 
   if (total === 0 || !step) {
     return (
-      <section aria-label="Agent run" className={cn("flex flex-col", layout === "rail" ? "w-[380px] shrink-0 border-l bg-card/50" : "flex-1")}>
+      <section aria-label="Agent run" className={cn("flex flex-col", layout === "rail" ? "shrink-0 border-t bg-card/50 lg:w-[380px] lg:border-t-0 lg:border-l" : "flex-1")}>
         {header}
         <p className="p-4 text-muted-foreground">This run has no steps: it stopped before the agent did anything.</p>
       </section>
@@ -161,10 +164,10 @@ export function AgentRun({
 
   if (layout === "rail") {
     return (
-      <section aria-label="Agent run" className="flex w-[380px] shrink-0 flex-col border-l bg-muted/40">
+      <section aria-label="Agent run" className={AGENT_RUN_RAIL_CLASS}>
         {header}
-        <div className="min-h-0 flex-1 overflow-y-auto">{stepList}</div>
-        <div className="max-h-[50%] shrink-0 overflow-y-auto border-t p-3">
+        <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">{stepList}</div>
+        <div className="shrink-0 border-t p-3 lg:max-h-[50%] lg:overflow-y-auto">
           <StepDetail step={step} compact />
         </div>
       </section>
@@ -174,9 +177,9 @@ export function AgentRun({
   return (
     <section aria-label="Agent run" className="flex min-h-0 flex-1 flex-col">
       {header}
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(18rem,26rem)_1fr]">
-        <div className="overflow-y-auto border-r bg-muted/40">{stepList}</div>
-        <div className="overflow-y-auto p-6">
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:grid-cols-[minmax(18rem,26rem)_1fr] lg:grid-rows-none">
+        <div className="overflow-y-auto border-b bg-muted/40 lg:border-r lg:border-b-0">{stepList}</div>
+        <div className="overflow-y-auto p-4 sm:p-6">
           <StepDetail step={step} />
         </div>
       </div>

@@ -53,7 +53,7 @@ export function BoardView({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-      <header className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
+      <header className="flex flex-wrap items-center gap-3 border-b px-4 py-4 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <h1 className="text-lg font-semibold">Board</h1>
           <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{badge}</span>
@@ -105,7 +105,7 @@ function KanbanView({
   const columns = boardColumns(board);
 
   return (
-    <section aria-label="Board" className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-6">
+    <section aria-label="Board" className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4 sm:p-6">
       {columns.map((column) => {
         const collapsed = column.key === "closed" && !closedOpen;
         const headingId = `board-column-${column.key}`;
@@ -243,7 +243,7 @@ function TableView({
   const filtered = filters.urgency !== undefined || filters.trade !== undefined || filters.location !== undefined;
 
   return (
-    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
       <div role="group" aria-label="Filters" className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor={`${id}-urgency`}>
           Urgency

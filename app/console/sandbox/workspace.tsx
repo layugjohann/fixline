@@ -38,6 +38,7 @@ import {
   serialiseSandbox,
   type Sandbox,
 } from "@/sandbox";
+import { ConsoleMain } from "../console-main";
 import { ConsoleRail } from "../console-rail";
 import { NewMessageForm } from "./new-message-form";
 import { Notices, type Notice } from "./notices";
@@ -60,7 +61,7 @@ const DecisionResponseSchema = BoardAndReviewQueueSchema.extend({ conflicts: z.a
 
 const ErrorResponseSchema = z.object({ error: z.string() });
 
-/** A shared-key live run was refused by live mode's rate limits. */
+/** A shared-key live run was refused by the live run limits. */
 const LiveRunLimitResponseSchema = z.object({
   error: z.string(),
   liveRunLimit: z.enum(["visitor", "global", "unavailable"]),
@@ -354,7 +355,7 @@ export function SandboxWorkspaceShell({ children }: { children: ReactNode }) {
           </>
         }
       />
-      <main className="flex min-w-0 flex-1">{children}</main>
+      <ConsoleMain>{children}</ConsoleMain>
 
       <Dialog open={dialog === "new-message"} onOpenChange={close}>
         <DialogContent className="sm:max-w-xl">

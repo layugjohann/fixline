@@ -32,7 +32,7 @@ export interface Counter {
 /** The shared-key limits could not be checked (for example, Upstash is unreachable). Live runs on the shared key are refused. */
 export class LiveRunLimiterUnavailableError extends Error {
   constructor(cause?: unknown) {
-    super("Live mode's rate limiter is unavailable right now.", { cause });
+    super("The live run limiter is unavailable right now.", { cause });
     this.name = "LiveRunLimiterUnavailableError";
   }
 }

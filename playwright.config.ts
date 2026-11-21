@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   npm run test:smoke                                    # https://fixline-phi.vercel.app
  *   FIXLINE_SMOKE_URL=http://localhost:3000 npm run test:smoke
  *
- * It makes no free-tier model call: live mode's Intake request is answered in the
+ * It makes no free-tier model call: the sandbox's live Intake request is answered in the
  * test by a scripted mock model, so it never reaches the deployed server.
  */
 export default defineConfig({

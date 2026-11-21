@@ -2,7 +2,7 @@
  * The design system for the landing page and the console: Tailwind v4 with shadcn/ui's token names.
  * Teal accent on stone neutrals. Light by default; dark when <html> has the
  * `dark` class, which the console's theme script sets from the system
- * preference or the visitor's choice (see app/console/theme.tsx).
+ * preference or the visitor's choice (see app/console/theme-script.ts and theme-toggle.tsx).
  */
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -18,18 +18,18 @@
   --card-foreground: oklch(0.216 0.006 56.043);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.216 0.006 56.043);
-  --primary: oklch(0.6 0.118 184.704); /* teal-600 */
+  --primary: oklch(0.511 0.096 186.391); /* teal-700: white text on it, and it as text, pass WCAG AA */
   --primary-foreground: oklch(0.984 0.014 180.72); /* teal-50 */
   --secondary: oklch(0.97 0.001 106.424);
   --secondary-foreground: oklch(0.268 0.007 34.298);
   --muted: oklch(0.97 0.001 106.424);
-  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500 */
+  --muted-foreground: oklch(0.5 0.013 58.071); /* between stone-500 and stone-600, for AA on every surface */
   --accent: oklch(0.953 0.051 180.801); /* teal-100 */
   --accent-foreground: oklch(0.386 0.063 188.416); /* teal-800 */
   --destructive: oklch(0.577 0.245 27.325); /* red-600 */
   --border: oklch(0.923 0.003 48.717); /* stone-200 */
   --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.704 0.14 182.503); /* teal-500 */
+  --ring: oklch(0.6 0.118 184.704); /* teal-600: 3:1 against every surface */
 
   /* Status colours: held for review, added to the Board, Urgency. */
   --warning: oklch(0.987 0.022 95.277); /* amber-50 */
