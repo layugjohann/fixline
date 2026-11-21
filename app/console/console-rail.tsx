@@ -85,14 +85,12 @@ export function ConsoleRail({
 
   return (
     <nav aria-label="Console" className="flex w-16 shrink-0 flex-col items-center bg-rail py-3 text-rail-foreground">
-      {/* Leaving the console is a full page load, so the console's styles don't carry over. */}
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a href="/" aria-label="Fixline home" className="mb-4 flex flex-col items-center gap-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <Link href="/" aria-label="Fixline home" className="mb-4 flex flex-col items-center gap-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
           <Wrench className="size-4" />
         </span>
         <span className="text-[10px] font-semibold tracking-wide text-rail-active-foreground">Fixline</span>
-      </a>
+      </Link>
 
       {actions && <div className="mb-3 flex flex-col items-center gap-1">{actions}</div>}
 
