@@ -9,7 +9,7 @@
 
 **Blocked by:** 01
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/22
 
 - [x] Model comparison built from the committed scorecard files at build time
