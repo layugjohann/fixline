@@ -53,7 +53,6 @@ The [Demo workspace](https://fixline-phi.vercel.app/console/demo/review-queue) s
 
 ![The Demo workspace's Review Queue: the queue, the conversation with the Proposal as a diff, and the agent run](docs/screenshots/review-queue.png)
 
-
 | Recorded run | What it shows |
 | --- | --- |
 | Duplicate: the same dripping tap, reported again | A repeat report attaches to the open Work Order instead of creating a duplicate, and is applied automatically. |

@@ -6,7 +6,11 @@
  *   npm run build && npm start                          # in another terminal
  *   npm run screenshots                                 # against http://localhost:3000
  *   FIXLINE_SCREENSHOT_URL=https://fixline-phi.vercel.app npm run screenshots
+ *
+ * Where Chromium can't register its Mach ports (some macOS sandboxes), set
+ * FIXLINE_SCREENSHOT_SINGLE_PROCESS=1 to launch it as one process.
  */
+import { mkdir } from "node:fs/promises";
 import { chromium } from "@playwright/test";
 
 const baseUrl = process.env.FIXLINE_SCREENSHOT_URL ?? "http://localhost:3000";
@@ -17,7 +21,12 @@ const SHOTS = [
   { path: "/console/demo/scorecard", file: "scorecard.png", fullPage: false },
 ];
 
-const browser = await chromium.launch();
+const singleProcess = process.env.FIXLINE_SCREENSHOT_SINGLE_PROCESS === "1";
+
+await mkdir("docs/screenshots", { recursive: true });
+const browser = await chromium.launch(
+  singleProcess ? { args: ["--no-sandbox", "--single-process", "--no-zygote"] } : {},
+);
 try {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
