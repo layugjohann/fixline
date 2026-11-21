@@ -2,9 +2,11 @@
 
 **An AI agent that turns messy tenant messages into triaged work orders, with human review, evals, and replayable traces.**
 
-- **Live demo: [fixline-phi.vercel.app](https://fixline-phi.vercel.app).** It opens in replay mode: step through recorded agent runs with no model and no key. [Live mode](https://fixline-phi.vercel.app/live) gives you your own sandbox to send Messages and work the Review Queue.
+- **Live demo: [fixline-phi.vercel.app](https://fixline-phi.vercel.app).** The landing page opens the console in one of two workspaces. The [Demo](https://fixline-phi.vercel.app/console/demo/review-queue) is read-only: step through recorded agent runs with no model and no key. [Your sandbox](https://fixline-phi.vercel.app/console/sandbox/incoming-messages) is live: send Messages as a Tenant and work the Review Queue yourself.
 - **Video (2 minutes):** the demo video, including the real Trello integration, is being recorded; its link goes here. <!-- video: replace this line's text with the link to the 2-minute demo video -->
 - **Scorecard:** every model is measured on a golden dataset of hard scenarios, not eyeballed. [Results below](#scorecard).
+
+![The Fixline landing page: an animated example of a messy Message becoming Work Orders, with buttons to open the Demo or your sandbox](docs/screenshots/landing.png)
 
 ## The engagement
 
@@ -41,11 +43,18 @@ Free-tier models on the 10-scenario smoke subset of the golden dataset (78 scena
 Golden scenarios per run: 10. Draft Reply quality judged by `groq:openai/gpt-oss-20b`. Run between 2026-11-20 and 2026-11-21.
 <!-- scorecard:end -->
 
+The console's Scorecard page shows the same runs side by side, with a pass/fail grid per scenario; click a scenario to step through its eval trace.
+
+![The console's Scorecard: the latest run per model side by side, then a pass/fail grid per scenario](docs/screenshots/scorecard.png)
+
 ## Try the hard cases
 
-Replay mode, the [landing page](https://fixline-phi.vercel.app), shows a curated set of recorded runs, each stepping through the agent's lookups, its Proposal and the routing decision:
+The [Demo workspace](https://fixline-phi.vercel.app/console/demo/review-queue) shows a curated set of recorded runs. In its Review Queue you sit in the Coordinator's seat: the Message, why it was held for review, the Proposal as a diff against the Board, the Draft Replies, and the agent run beside it, step by step through the agent's lookups, its Proposal and the routing decision. Runs lists the same recordings full width.
 
-| Replay | What it shows |
+![The Demo workspace's Review Queue: the queue, the conversation with the Proposal as a diff, and the agent run](docs/screenshots/review-queue.png)
+
+
+| Recorded run | What it shows |
 | --- | --- |
 | Duplicate: the same dripping tap, reported again | A repeat report attaches to the open Work Order instead of creating a duplicate, and is applied automatically. |
 | Heater dead again, plus a dripping tap | One Message, two problems: an update to the open heating Work Order and a new Work Order for the tap. |
@@ -55,7 +64,7 @@ Replay mode, the [landing page](https://fixline-phi.vercel.app), shows a curated
 | Laundry room leak reported from another Unit | A Common Area problem matches the Work Order another Unit already raised; as a match across Tenants, it goes to review. |
 | A rent question, not maintenance | No Work Order at all. |
 
-In [live mode](https://fixline-phi.vercel.app/live), you get your own sandbox: a Board, Review Queue and Property Roster seeded with Harbor Lane's data, Incoming Messages to run Intake on live, a New Message form to send your own Message as a Tenant, and a reset button in the workspace menu. The sandbox lives only in your browser; the server stores nothing. Live runs on the shared free-tier model are limited per visitor and capped per day; paste your own Claude or OpenAI key from the sandbox's workspace menu to run a frontier model without those limits. Your key is used only for the request that carries it and is never stored or logged.
+In [your sandbox](https://fixline-phi.vercel.app/console/sandbox/incoming-messages), the live workspace, you get a Board, Review Queue and Property Roster seeded with Harbor Lane's data, Incoming Messages to run Intake on live, a New Message form to send your own Message as a Tenant, and a reset button in the workspace menu. The sandbox lives only in your browser; the server stores nothing. Live runs on the shared free-tier model are limited per visitor and capped per day; paste your own Claude or OpenAI key from the sandbox's workspace menu to run a frontier model without those limits. Your key is used only for the request that carries it and is never stored or logged.
 
 ## Design highlights
 
@@ -72,7 +81,7 @@ The domain language is defined in [GLOSSARY.md](GLOSSARY.md).
 ```sh
 npm install
 cp .env.example .env.local   # then set GROQ_API_KEY (free tier)
-npm run dev                  # replay mode at http://localhost:3000, live mode at /live
+npm run dev                  # http://localhost:3000: the landing page, then the Demo and sandbox workspaces under /console
 ```
 
 ### Full setup and deploy
@@ -128,9 +137,9 @@ Gemini (`gemini-3.8-flash`, the app's fallback) is not in the table: during both
 
 ### Traces and replays
 
-Every Intake run returns a trace: an ordered list of steps (model turns, tool calls with their inputs and outputs, the final Proposal, the routing decision). Live runs, eval runs and replay all use this one format (`Trace` in `src/domain`).
+Every Intake run returns a trace: an ordered list of steps (model turns, tool calls with their inputs and outputs, the final Proposal, the routing decision). Live runs, eval runs and the Demo's recorded runs all use this one format (`Trace` in `src/domain`).
 
-Replay mode, the landing page, shows the recorded runs in `replays/`. Each file is a replay: a trace plus the Message it was for, the Board it started from, and the model that produced it. The page reads them when it is built and serves them as static data, so it makes no model calls and needs no key.
+The Demo workspace is built from the recorded runs in `replays/`. Each file is a replay: a trace plus the Message it was for, the Board it started from, and the model that produced it. The console reads them when it is built and serves them as static data, so the Demo makes no model calls and needs no key. The landing page's animated example comes from one of them too.
 
 To turn any saved trace into a replay:
 
@@ -144,9 +153,9 @@ npm run replay -- eval-runs/<run>/traces/emergency-burst-pipe.json
 npm run replay -- live-run.json --message message.json --board board.json --model groq --id my-run --title "My run"
 ```
 
-Either writes `replays/<id>.json` (`--out <dir>` to write elsewhere, `--scenario <id>` to pick the golden scenario explicitly, `--title` and `--description` to label it). Commit the file and it appears in replay mode on the next build.
+Either writes `replays/<id>.json` (`--out <dir>` to write elsewhere, `--scenario <id>` to pick the golden scenario explicitly, `--title` and `--description` to label it). Commit the file and it appears in the Demo workspace on the next build.
 
-The curated replays (listed under [Try the hard cases](#try-the-hard-cases)) are recorded by `npm run replay:samples`, which runs the real Intake pipeline (validation, review policy, Applier) on golden scenarios with a scripted mock model standing in for the model; their model is labelled as scripted, so the landing page never depends on a free-tier quota. Replace any of them with a real run once one is recorded.
+The curated replays (listed under [Try the hard cases](#try-the-hard-cases)) are recorded by `npm run replay:samples`, which runs the real Intake pipeline (validation, review policy, Applier) on golden scenarios with a scripted mock model standing in for the model; their model is labelled as scripted, so the Demo never depends on a free-tier quota. Replace any of them with a real run once one is recorded.
 
 ### Models
 
@@ -161,7 +170,7 @@ Models are chosen by a spec, `<provider>[:<modelId>]` (see `src/models`), all th
 
 Live runs use Groq, falling back to Gemini when Groq is rate-limited (if both keys are set). Set `FIXLINE_MODEL` to pin one model instead. The SDK retries rate-limited calls first; if the limit still holds, the API answers `429` with a clear message rather than a failed Proposal.
 
-In live mode, shared-model runs are also capped per visitor and per day (`FIXLINE_LIVE_RUNS_PER_VISITOR`, default 10, and `FIXLINE_LIVE_RUNS_PER_DAY`, default 100, counted per UTC day). The counts live in Upstash Redis when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set (the setup wizard adds them), and in memory otherwise. A visitor over a cap is pointed to replay mode or to bringing their own key; own-key runs skip the caps.
+In the sandbox workspace, shared-model runs are also capped per visitor and per day (`FIXLINE_LIVE_RUNS_PER_VISITOR`, default 10, and `FIXLINE_LIVE_RUNS_PER_DAY`, default 100, counted per UTC day). The counts live in Upstash Redis when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set (the setup wizard adds them), and in memory otherwise. A visitor over a cap is pointed to the Demo or to bringing their own key; own-key runs skip the caps.
 
 ### Trello
 
@@ -177,6 +186,10 @@ Each Work Order is a card: the title is the card name; Urgency, Trade and the Un
 
 One Board contract suite (`src/board/contract.ts`) defines how every Board behaves. The fake Board runs it in `npm test`; the Trello adapter runs it by hand against the test Board with `npm run test:trello`, or from GitHub with the manual "Trello Board contract" workflow.
 
+### Screenshots
+
+The screenshots in this README are taken in light mode by `npm run screenshots` (Playwright), against a local production build or any URL set in `FIXLINE_SCREENSHOT_URL`, and written to `docs/screenshots/`.
+
 ### Checks
 
 `npm run typecheck`, `npm run lint`, `npm test`. The tests use the AI SDK mock model and make no network calls.
@@ -189,14 +202,14 @@ npm run test:smoke                                     # https://fixline-phi.ver
 FIXLINE_SMOKE_URL=http://localhost:3000 npm run test:smoke
 ```
 
-It checks that replay mode loads and steps through a recorded run, and that a Message sent from a live-mode sandbox lands in the Review Queue and reaches the Board once approved. It makes no free-tier model call: the browser's live Intake request is answered inside the test by live mode's own request handler on a scripted mock model, so it never reaches the deployed server. The Coordinator's approval does go to the deployed server, which calls no model. The "Browser smoke test" GitHub workflow runs it after every successful production deploy, or by hand against any URL.
+It checks that the landing page opens the Demo workspace, which steps through a recorded run, and that a Message sent from the sandbox workspace lands in the Review Queue and reaches the Board once approved. Its selectors are roles and accessible names. It makes no free-tier model call: the browser's live Intake request is answered inside the test by the live Intake request handler on a scripted mock model, so it never reaches the deployed server. The Coordinator's approval does go to the deployed server, which calls no model. The "Browser smoke test" GitHub workflow runs it after every successful production deploy, or by hand against any URL.
 
 ## Roadmap
 
 1. [x] Domain types, fake Board, Property Roster fixtures, golden dataset
 2. [x] Agent and command-line eval runner, plus a model scorecard
 3. [x] Trello adapter
-4. [x] Web UI: Incoming Messages, Review Queue, trace replay, bring-your-own-key
+4. [x] Web UI: a landing page and a console with Demo and sandbox workspaces (Incoming Messages, Review Queue, Board, Property Roster, Runs, Scorecard), bring-your-own-key
 5. [ ] Deploy, browser smoke test, curated replays and scorecard in this README (done); demo video (being recorded)
 6. [ ] Stretch: real email channel
 
