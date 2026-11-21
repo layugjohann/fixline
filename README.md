@@ -25,20 +25,20 @@ Free-tier models on the 10-scenario smoke subset of the golden dataset (78 scena
 <!-- scorecard:start -->
 | Dimension | `groq:openai/gpt-oss-120b` | `groq:qwen/qwen3.8-27b` |
 | --- | ---: | ---: |
-| **Scenarios passed** | **50% (5/10)** | **10% (1/10)** |
-| Classification (maintenance or not) | 70% (7/10) | 10% (1/10) |
-| Number of Work Orders | 60% (6/10) | 10% (1/10) |
-| Match target (attach or create) | 63% (5/8) | 10% (1/10) |
-| Unit or Common Area | 50% (3/6) | 10% (1/10) |
-| Trade | 50% (3/6) | 10% (1/10) |
-| Urgency | 50% (3/6) | 10% (1/10) |
-| Prompt-injection resistance | 25% (1/4) | 10% (1/10) |
-| Review routing | 60% (6/10) | 10% (1/10) |
-| Draft Reply drafted when needed | 17% (1/6) | 0% (0/9) |
-| Draft Reply quality (LLM judge) | 25% (1/4) | 0% (0/9) |
+| **Scenarios passed** | **80% (8/10)** | **60% (6/10)** |
+| Classification (maintenance or not) | 100% (10/10) | 100% (10/10) |
+| Number of Work Orders | 100% (10/10) | 100% (10/10) |
+| Match target (attach or create) | 88% (7/8) | 63% (5/8) |
+| Unit or Common Area | 100% (6/6) | 100% (6/6) |
+| Trade | 100% (6/6) | 100% (6/6) |
+| Urgency | 100% (6/6) | 100% (6/6) |
+| Prompt-injection resistance | 100% (1/1) | 100% (1/1) |
+| Review routing | 90% (9/10) | 60% (6/10) |
+| Draft Reply drafted when needed | 50% (1/2) | 50% (1/2) |
+| Draft Reply quality (LLM judge) | 100% (1/1) | 100% (1/1) |
 | Not graded (rate limit or error) | 0 | 0 |
 
-Golden scenarios per run: 10. Draft Reply quality judged by `groq:openai/gpt-oss-20b`. Run on 2026-11-18.
+Golden scenarios per run: 10. Draft Reply quality judged by `groq:openai/gpt-oss-20b`. Run between 2026-11-20 and 2026-11-21.
 <!-- scorecard:end -->
 
 ## Try the hard cases
@@ -102,7 +102,7 @@ Each run writes `scorecard.json` (which records the model), `scorecard.md` (the 
 
 #### Smoke subset in CI
 
-Ten scenarios are tagged `smoke`. Between them they reach every routing outcome and grade every dimension. On every push, GitHub Actions runs them on Groq's free tier with the `GROQ_API_KEY` repository secret (`npm run eval:smoke`, a few dozen model calls). Any failed scenario fails the build. A run stopped by the free-tier limit before anything was graded only warns, because a rate limit isn't a regression. The scorecard goes into the job summary, and the traces are uploaded as an artifact. Without the secret, the job is skipped with a warning.
+Ten scenarios are tagged `smoke`. Between them they reach every routing outcome and grade every dimension. GitHub Actions runs them on Groq's free tier with the `GROQ_API_KEY` repository secret (`npm run eval:smoke`, a few dozen model calls), only when started by hand: **Actions → CI → Run workflow**. Every push still runs typecheck, lint and tests. The evals used to run on every push too, but a few branch pushes in a row used up the free tier's daily tokens. Any failed scenario fails the build. A run stopped by the free-tier limit before anything was graded only warns, because a rate limit isn't a regression. The scorecard goes into the job summary, and the traces are uploaded as an artifact. Without the secret, the job is skipped with a warning.
 
 #### Model scorecard
 
@@ -122,10 +122,9 @@ Gemini (`gemini-3.8-flash`, the app's fallback) is not in the table: during both
 
 **Known weak spots.** From the runs in the [scorecard](#scorecard) (traces under each run's `traces/`):
 
-- **Rejected tool calls.** Most failures happen before the model proposes anything. `qwen3.8-27b` misspells tool names (`lookUpSendeler`, `lookUpUsuario`, `searchOpenWorkorders`), leaves out required inputs (`lookUpSender` without `email`), and sends a string where `submitProposal` expects a boolean; 8 of its 9 failures are this. `gpt-oss-120b` sometimes answers in prose when a tool call is required (`not-maintenance-rent-question`, `urgent-fridge-not-cooling`, `split-unknown-sender-emergency-and-routine`). These runs predate retries: Intake now tries the turn again up to 2 times per Message, telling the model what the provider rejected and why and listing the exact tool names, and keeps the lookups it had already done (Issue 18). The scorecard above hasn't been re-run since, so it doesn't show the effect yet.
-- **Unknown Senders.** `gpt-oss-120b` fails both unknown-Sender scenarios (`qwen3.8-27b` never got past its tool calls on them, and failed them the same way in an earlier run). On `review-unknown-sender` it proposes no Work Order and drafts a missing-Unit reply instead of creating the Work Order and routing it to review.
-- **Unwanted Draft Replies on emergencies.** On `emergency-burst-pipe`, `gpt-oss-120b` drafts an emergency confirmation to the Tenant, which turns a clean apply-and-flag into a split that waits for review.
-- **Draft Replies overall.** The Draft Reply dimensions are the weakest for both models: few scenarios that need a reply get one, and the judge passes few of those that do.
+- **Unwanted Draft Replies on emergencies.** On `emergency-burst-pipe`, both models draft an emergency confirmation to the Tenant, which turns a clean apply-and-flag into a split that waits for review. It's the one scenario both still fail.
+- **Matching to an open Work Order.** `qwen3.8-27b` creates a new Work Order instead of attaching to the open one in three scenarios (`match-angry-follow-up`, `multi-problem-attach-and-create`, `common-area-merge-across-units`), and `gpt-oss-120b` does it once (the first problem in `multi-problem-attach-and-create`). This is the one failure that doesn't always fail safe: in `common-area-merge-across-units` (`qwen3.8-27b`) and `multi-problem-attach-and-create` (`gpt-oss-120b`), the duplicate is auto-applied, so it reaches the Board without review.
+- **Fixed since the first scorecard.** Before retries (Issue 18) and the roster lookup for unknown Senders (Issue 17), rejected tool calls caused 8 of `qwen3.8-27b`'s 9 failures and 3 of `gpt-oss-120b`'s 5, and `gpt-oss-120b` failed both unknown-Sender scenarios. In these runs, `gpt-oss-120b` had 2 rejected tool calls (`injection-mark-everything-emergency`, `review-unknown-sender`); the retry got through both times and the scenarios passed. `qwen3.8-27b` had none. Both models pass both unknown-Sender scenarios.
 
 ### Traces and replays
 

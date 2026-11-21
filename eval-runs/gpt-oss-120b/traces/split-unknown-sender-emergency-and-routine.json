@@ -1,0 +1,144 @@
+{
+  "messageId": "msg-unknown-sender-flood-and-latch",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "m.okafor.home@example.org"
+      },
+      "output": {
+        "found": false
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "listProperties",
+      "input": {},
+      "output": {
+        "properties": [
+          {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "name": "Stairwell"
+              }
+            ]
+          },
+          {
+            "id": "quay-court",
+            "name": "Quay Court",
+            "address": "40 Quay Street",
+            "units": [
+              {
+                "id": "quay-court-101",
+                "label": "101"
+              },
+              {
+                "id": "quay-court-102",
+                "label": "102"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "quay-court-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "quay-court-bike-store",
+                "name": "Bike store"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-2a",
+        "query": "water"
+      },
+      "output": []
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-2a",
+        "query": "latch"
+      },
+      "output": []
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-2a"
+            },
+            "title": "Bathroom sink flooding",
+            "description": "Water is gushing out from under the bathroom sink, flooding the floor. Immediate attention needed.",
+            "trade": "plumbing",
+            "urgency": "emergency"
+          },
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-2a"
+            },
+            "title": "Loose bedroom window latch",
+            "description": "The latch on the bedroom window is loose.",
+            "trade": "general",
+            "urgency": "routine"
+          }
+        ],
+        "uncertain": false,
+        "draftReplies": [],
+        "reasoning": "The sender, not in the roster, identified their unit as 2A at Harbor View Apartments, matching unit ID harbor-view-2a. Two distinct problems were found: a flooding bathroom sink (plumbing emergency) and a loose bedroom window latch (routine general issue). No open work orders match these problems, so both require new work orders. No draft replies are needed as the tenant did not request confirmation."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "split",
+        "rules": [
+          "emergency",
+          "unknown-sender"
+        ],
+        "reason": "An emergency Work Order: applied immediately and flagged for a Coordinator. The rest of the Proposal waits for review: The Sender isn't in the Property Roster."
+      }
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "messageId": "msg-heating-chaser",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "luis.romero@example.com"
+      },
+      "output": {
+        "found": true,
+        "tenant": {
+          "id": "tenant-luis",
+          "name": "Luis Romero",
+          "email": "luis.romero@example.com",
+          "unitId": "harbor-view-3b"
+        },
+        "unit": {
+          "id": "harbor-view-3b",
+          "propertyId": "harbor-view",
+          "label": "3B"
+        },
+        "property": {
+          "id": "harbor-view",
+          "name": "Harbor View Apartments",
+          "address": "12 Harbor Lane",
+          "units": [
+            {
+              "id": "harbor-view-1a",
+              "propertyId": "harbor-view",
+              "label": "1A"
+            },
+            {
+              "id": "harbor-view-2a",
+              "propertyId": "harbor-view",
+              "label": "2A"
+            },
+            {
+              "id": "harbor-view-3b",
+              "propertyId": "harbor-view",
+              "label": "3B"
+            }
+          ],
+          "commonAreas": [
+            {
+              "id": "harbor-view-lobby",
+              "propertyId": "harbor-view",
+              "name": "Lobby"
+            },
+            {
+              "id": "harbor-view-laundry-room",
+              "propertyId": "harbor-view",
+              "name": "Laundry room"
+            },
+            {
+              "id": "harbor-view-stairwell",
+              "propertyId": "harbor-view",
+              "name": "Stairwell"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-3b",
+        "query": "heating"
+      },
+      "output": [
+        {
+          "id": "WO-3",
+          "location": {
+            "type": "unit",
+            "unitId": "harbor-view-3b"
+          },
+          "title": "Radiators not heating",
+          "description": "None of the radiators in the flat get warm; the boiler display shows no error.",
+          "trade": "hvac",
+          "urgency": "urgent",
+          "status": "open",
+          "messageIds": [
+            "msg-seed-3"
+          ],
+          "raisedByTenantId": "tenant-luis"
+        }
+      ]
+    },
+    {
+      "type": "tool-call",
+      "toolName": "getWorkOrder",
+      "input": {
+        "workOrderId": "WO-3"
+      },
+      "output": {
+        "found": true,
+        "workOrder": {
+          "id": "WO-3",
+          "location": {
+            "type": "unit",
+            "unitId": "harbor-view-3b"
+          },
+          "title": "Radiators not heating",
+          "description": "None of the radiators in the flat get warm; the boiler display shows no error.",
+          "trade": "hvac",
+          "urgency": "urgent",
+          "status": "open",
+          "messageIds": [
+            "msg-seed-3"
+          ],
+          "raisedByTenantId": "tenant-luis"
+        }
+      }
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-3b"
+            },
+            "title": "No heating - follow-up chaser, no visit a week on",
+            "description": "Repeat follow-up from unit 3B by the original Tenant: no heating a week after the original report, living room measured only 12 degrees this morning, no service visit has taken place yet.",
+            "trade": "hvac",
+            "urgency": "urgent"
+          }
+        ],
+        "uncertain": true,
+        "draftReplies": [],
+        "reasoning": "Luis Romero (tenant-luis) in unit 3B is chasing an existing problem: total lack of heating reported a week ago with no visit. The Tenant lives on the Property Roster (3B), so classification and location are certain; the Sender's explicit claim that no one came and that the problem persists means this is a new follow-up rather than a repeat of an open same-tenant duplicate, but I am not confident without checking the Board whether a newer open Work Order for this same heating complaint has already been opened for this Unit. Treat as urgent (comfort/health, not same-day emergency), HVAC trade. Flag uncertain to a Coordinator for timing/escalation decision."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "review",
+        "rules": [
+          "uncertain"
+        ],
+        "reason": "The agent flagged this Proposal as uncertain."
+      }
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "messageId": "msg-unknown-sender-towel-rail",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "m.okafor.home@example.org"
+      },
+      "output": {
+        "found": false
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "listProperties",
+      "input": {},
+      "output": {
+        "properties": [
+          {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "name": "Stairwell"
+              }
+            ]
+          },
+          {
+            "id": "quay-court",
+            "name": "Quay Court",
+            "address": "40 Quay Street",
+            "units": [
+              {
+                "id": "quay-court-101",
+                "label": "101"
+              },
+              {
+                "id": "quay-court-102",
+                "label": "102"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "quay-court-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "quay-court-bike-store",
+                "name": "Bike store"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-2a",
+        "query": "towel rail"
+      },
+      "output": []
+    },
+    {
+      "type": "rejected-tool-call",
+      "explanation": "Tool choice is required, but model did not call a tool"
+    },
+    {
+      "type": "retry",
+      "attempt": 1,
+      "maxRetries": 2
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-2a"
+            },
+            "title": "Loose towel rail in bathroom",
+            "description": "The towel rail in the bathroom has come loose from the wall, with one of the screws pulled out.",
+            "trade": "carpentry",
+            "urgency": "routine"
+          }
+        ],
+        "uncertain": false,
+        "draftReplies": [],
+        "reasoning": "The sender, not found in the roster, explicitly identified their unit as 2A at Harbor View Apartments, which matches unit ID harbor-view-2a. The problem described is a loose towel rail, a carpentry issue, with no urgency indicated. No existing open work order matches this problem, so a new work order is created."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "review",
+        "rules": [
+          "unknown-sender"
+        ],
+        "reason": "The Sender isn't in the Property Roster."
+      }
+    }
+  ]
+}

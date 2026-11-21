@@ -1,0 +1,152 @@
+{
+  "messageId": "msg-unknown-sender-flood-and-latch",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "m.okafor.home@example.org"
+      },
+      "output": {
+        "found": false
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "listProperties",
+      "input": {},
+      "output": {
+        "properties": [
+          {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "name": "Stairwell"
+              }
+            ]
+          },
+          {
+            "id": "quay-court",
+            "name": "Quay Court",
+            "address": "40 Quay Street",
+            "units": [
+              {
+                "id": "quay-court-101",
+                "label": "101"
+              },
+              {
+                "id": "quay-court-102",
+                "label": "102"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "quay-court-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "quay-court-bike-store",
+                "name": "Bike store"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-2a",
+        "query": "sink flooding"
+      },
+      "output": []
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-2a",
+        "query": "bedroom window latch"
+      },
+      "output": []
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-2a"
+      },
+      "output": []
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-2a"
+            },
+            "title": "Active flooding - bathroom sink burst/gushing",
+            "description": "Active, uncontrolled water gushing from under the bathroom sink is flooding the floor in Unit 2A, Harbor View Apartments. Tenant says they cannot stop it.",
+            "trade": "plumbing",
+            "urgency": "emergency"
+          },
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-2a"
+            },
+            "title": "Loose bedroom window latch",
+            "description": "Latch on the bedroom window is loose in Unit 2A, Harbor View Apartments. Reported as not urgent.",
+            "trade": "carpentry",
+            "urgency": "routine"
+          }
+        ],
+        "uncertain": false,
+        "draftReplies": [],
+        "reasoning": "Sender not in roster (writing from personal email) but names exactly one Unit on the roster (2A at Harbor View Apartments → harbor-view-2a). Two distinct problems, both in that Unit, no matching open Work Orders. Problem 1: uncontrolled gushing/flooding → emergency, plumbing. Problem 2: loose window latch, explicitly not urgent → routine, carpentry. No draft replies needed since placement succeeded and no reply was requested.\"}"
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "split",
+        "rules": [
+          "emergency",
+          "unknown-sender"
+        ],
+        "reason": "An emergency Work Order: applied immediately and flagged for a Coordinator. The rest of the Proposal waits for review: The Sender isn't in the Property Roster."
+      }
+    }
+  ]
+}

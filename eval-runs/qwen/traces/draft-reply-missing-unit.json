@@ -1,0 +1,109 @@
+{
+  "messageId": "msg-missing-unit",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "jordan.lee@example.net"
+      },
+      "output": {
+        "found": false
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "listProperties",
+      "input": {},
+      "output": {
+        "properties": [
+          {
+            "id": "harbor-view",
+            "name": "Harbor View Apartments",
+            "address": "12 Harbor Lane",
+            "units": [
+              {
+                "id": "harbor-view-1a",
+                "label": "1A"
+              },
+              {
+                "id": "harbor-view-2a",
+                "label": "2A"
+              },
+              {
+                "id": "harbor-view-3b",
+                "label": "3B"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "harbor-view-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "harbor-view-laundry-room",
+                "name": "Laundry room"
+              },
+              {
+                "id": "harbor-view-stairwell",
+                "name": "Stairwell"
+              }
+            ]
+          },
+          {
+            "id": "quay-court",
+            "name": "Quay Court",
+            "address": "40 Quay Street",
+            "units": [
+              {
+                "id": "quay-court-101",
+                "label": "101"
+              },
+              {
+                "id": "quay-court-102",
+                "label": "102"
+              }
+            ],
+            "commonAreas": [
+              {
+                "id": "quay-court-lobby",
+                "name": "Lobby"
+              },
+              {
+                "id": "quay-court-bike-store",
+                "name": "Bike store"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [],
+        "uncertain": true,
+        "draftReplies": [
+          {
+            "purpose": "missing-unit",
+            "body": "Hi Jordan, thanks for letting us know about the cold radiator in your bedroom. To make sure we send the right technician, could you confirm which property and which unit number you are in at Harbor Lane? Once we have that, we'll get someone to take a look. Thanks, Harbor Lane Property Management"
+          }
+        ],
+        "reasoning": "Sender Jordan Lee is not in the Property Roster (lookUpSender found: false). The Message reports a single real maintenance problem: the bedroom radiator has been cold for two days — an HVAC issue, urgency urgent (comfort degraded, not a safety emergency). It is the Sender's own bedroom, so it belongs in their Unit, but the Message names no Property, Unit, or Common Area, so it cannot be placed on the roster. No Work Order can be created for a problem that can't be placed, and no open orders were searched. Per step 4, I set uncertain=true and add a \"missing-unit\" Draft Reply asking which Property and Unit the radiator is in. No internal ids, other Tenants, or promises mentioned."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "review",
+        "rules": [
+          "uncertain",
+          "unknown-sender",
+          "draft-reply"
+        ],
+        "reason": "The agent flagged this Proposal as uncertain. The Sender isn't in the Property Roster. It includes a Draft Reply, which a Coordinator must approve before it counts as sent."
+      }
+    }
+  ]
+}

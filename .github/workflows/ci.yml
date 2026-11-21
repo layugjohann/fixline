@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
@@ -18,12 +19,13 @@ jobs:
       - run: npm run lint
       - run: npm test
 
-  # The eval smoke subset (golden scenarios tagged "smoke") on the free-tier model, on every push.
+  # The eval smoke subset (golden scenarios tagged "smoke") on the free-tier model, only when run by hand
+  # (Actions → CI → Run workflow): on every push, a few branch pushes in a row used up the free tier's daily tokens.
   # Kept to about ten scenarios so it fits Groq's free tier. It fails on any graded failure, which is
   # a regression: the smoke scenarios are the ones the default model is expected to pass. A run that
   # was rate-limited from start to finish grades nothing, so it warns instead of failing.
   eval-smoke:
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     needs: check
     runs-on: ubuntu-latest
     # One smoke run at a time, so pushes in quick succession don't race for the free-tier quota.

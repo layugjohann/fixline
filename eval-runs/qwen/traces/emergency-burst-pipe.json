@@ -1,0 +1,110 @@
+{
+  "messageId": "msg-burst-pipe",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "priya.nair@example.com"
+      },
+      "output": {
+        "found": true,
+        "tenant": {
+          "id": "tenant-priya",
+          "name": "Priya Nair",
+          "email": "priya.nair@example.com",
+          "unitId": "quay-court-101"
+        },
+        "unit": {
+          "id": "quay-court-101",
+          "propertyId": "quay-court",
+          "label": "101"
+        },
+        "property": {
+          "id": "quay-court",
+          "name": "Quay Court",
+          "address": "40 Quay Street",
+          "units": [
+            {
+              "id": "quay-court-101",
+              "propertyId": "quay-court",
+              "label": "101"
+            },
+            {
+              "id": "quay-court-102",
+              "propertyId": "quay-court",
+              "label": "102"
+            }
+          ],
+          "commonAreas": [
+            {
+              "id": "quay-court-lobby",
+              "propertyId": "quay-court",
+              "name": "Lobby"
+            },
+            {
+              "id": "quay-court-bike-store",
+              "propertyId": "quay-court",
+              "name": "Bike store"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "quay-court-101"
+      },
+      "output": []
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "quay-court-101",
+        "query": "pipe bathroom sink plumbing water"
+      },
+      "output": []
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "quay-court-101"
+            },
+            "title": "Burst pipe under bathroom sink, active flooding",
+            "description": "Pipe under bathroom sink has burst, water is spraying and the floor is flooding. Tenant is unable to locate/shut off the water supply. Same-day response needed to stop water damage.",
+            "trade": "plumbing",
+            "urgency": "emergency"
+          }
+        ],
+        "uncertain": false,
+        "draftReplies": [
+          {
+            "purpose": "emergency-confirmation",
+            "body": "Thank you for contacting us, and sorry you're dealing with this. We have received your report and are treating it as an emergency.\n\nIn the meantime, if it is safe to reach, please try the small valve on the pipe right where it meets under the sink — turning it clockwise (tight) may slow or stop the flow. If you can't find it, look for the main water stopcock, often in the kitchen, near the meter, or behind the panel where the meter/cistern is, and turn that clockwise to shut the water off. Keep clear of standing water and any electrical outlets, and if water is rising quickly or there is any risk of injury, please call your local emergency services rather than waiting.\n\nWe will follow up as soon as a plumber has been arranged.\n\nHarbor Lane Property Management"
+          }
+        ],
+        "reasoning": "Sender is a Tenant (Priya Nair) in Unit 101 at Quay Court. The single problem is a burst pipe under the bathroom sink with active flooding (spraying water, floor flooding). A ruptured pipe flooding a Unit is an active property-damage risk requiring same-day response -> emergency, trade plumbing, located in the Sender's own Unit. No open Work Orders exist for this Unit, so create a new one. The Tenant also asks for help finding the water shutoff, so an emergency confirmation reply with basic safe advice is appropriate."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "split",
+        "rules": [
+          "emergency",
+          "draft-reply"
+        ],
+        "reason": "An emergency Work Order: applied immediately and flagged for a Coordinator. The rest of the Proposal waits for review: It includes a Draft Reply, which a Coordinator must approve before it counts as sent."
+      }
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "messageId": "msg-burst-pipe",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "priya.nair@example.com"
+      },
+      "output": {
+        "found": true,
+        "tenant": {
+          "id": "tenant-priya",
+          "name": "Priya Nair",
+          "email": "priya.nair@example.com",
+          "unitId": "quay-court-101"
+        },
+        "unit": {
+          "id": "quay-court-101",
+          "propertyId": "quay-court",
+          "label": "101"
+        },
+        "property": {
+          "id": "quay-court",
+          "name": "Quay Court",
+          "address": "40 Quay Street",
+          "units": [
+            {
+              "id": "quay-court-101",
+              "propertyId": "quay-court",
+              "label": "101"
+            },
+            {
+              "id": "quay-court-102",
+              "propertyId": "quay-court",
+              "label": "102"
+            }
+          ],
+          "commonAreas": [
+            {
+              "id": "quay-court-lobby",
+              "propertyId": "quay-court",
+              "name": "Lobby"
+            },
+            {
+              "id": "quay-court-bike-store",
+              "propertyId": "quay-court",
+              "name": "Bike store"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "quay-court-101",
+        "query": "pipe"
+      },
+      "output": []
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "quay-court-101"
+            },
+            "title": "Burst pipe under bathroom sink",
+            "description": "The pipe under the bathroom sink has burst, causing water to spray everywhere and flooding the floor. The tenant cannot locate the water shut‑off valve.",
+            "trade": "plumbing",
+            "urgency": "emergency"
+          }
+        ],
+        "uncertain": false,
+        "draftReplies": [
+          {
+            "purpose": "emergency-confirmation",
+            "body": "Dear Priya,\n\nWe have received your report about the burst pipe under your bathroom sink. This is an emergency and our team is prioritizing a response. If you can safely locate the main water shut‑off valve for your unit and turn it off, please do so to limit the flooding. Stay clear of any standing water and electrical outlets. We will send a plumber as soon as possible.\n\nThank you,\nHarbor Lane Property Management"
+          }
+        ],
+        "reasoning": "The tenant reports a burst pipe under their bathroom sink, which poses immediate water damage risk. This is an emergency plumbing issue located in the tenant's unit (quay-court-101). No open work order exists for this problem, so a new work order is created. An emergency-confirmation reply is added to acknowledge the report and advise immediate safety steps."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "split",
+        "rules": [
+          "emergency",
+          "draft-reply"
+        ],
+        "reason": "An emergency Work Order: applied immediately and flagged for a Coordinator. The rest of the Proposal waits for review: It includes a Draft Reply, which a Coordinator must approve before it counts as sent."
+      }
+    }
+  ]
+}

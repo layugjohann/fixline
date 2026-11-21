@@ -1,0 +1,42 @@
+{
+  "messageId": "msg-missing-unit",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "jordan.lee@example.net"
+      },
+      "output": {
+        "found": false
+      }
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [],
+        "uncertain": true,
+        "draftReplies": [
+          {
+            "purpose": "missing-unit",
+            "body": "Hi Jordan,\n\nThank you for letting us know about the cold radiator in your bedroom. To create a work order, we need to know the specific unit and property you are in. Could you please confirm your unit number and the name of the property?\n\nWe’ll arrange for someone to inspect the radiator as soon as possible once we have this information.\n\nThank you,\nHarbor Lane Property Management"
+          }
+        ],
+        "reasoning": "Sender not found in the roster and the message does not specify a unit or property. Without a clear location, we cannot place the problem. A missing-unit draft reply is required to request the needed details. No work order operations are created."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "review",
+        "rules": [
+          "uncertain",
+          "unknown-sender",
+          "draft-reply"
+        ],
+        "reason": "The agent flagged this Proposal as uncertain. The Sender isn't in the Property Roster. It includes a Draft Reply, which a Coordinator must approve before it counts as sent."
+      }
+    }
+  ]
+}

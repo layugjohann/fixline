@@ -1,0 +1,124 @@
+{
+  "messageId": "msg-heater-and-tap",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "luis.romero@example.com"
+      },
+      "output": {
+        "found": true,
+        "tenant": {
+          "id": "tenant-luis",
+          "name": "Luis Romero",
+          "email": "luis.romero@example.com",
+          "unitId": "harbor-view-3b"
+        },
+        "unit": {
+          "id": "harbor-view-3b",
+          "propertyId": "harbor-view",
+          "label": "3B"
+        },
+        "property": {
+          "id": "harbor-view",
+          "name": "Harbor View Apartments",
+          "address": "12 Harbor Lane",
+          "units": [
+            {
+              "id": "harbor-view-1a",
+              "propertyId": "harbor-view",
+              "label": "1A"
+            },
+            {
+              "id": "harbor-view-2a",
+              "propertyId": "harbor-view",
+              "label": "2A"
+            },
+            {
+              "id": "harbor-view-3b",
+              "propertyId": "harbor-view",
+              "label": "3B"
+            }
+          ],
+          "commonAreas": [
+            {
+              "id": "harbor-view-lobby",
+              "propertyId": "harbor-view",
+              "name": "Lobby"
+            },
+            {
+              "id": "harbor-view-laundry-room",
+              "propertyId": "harbor-view",
+              "name": "Laundry room"
+            },
+            {
+              "id": "harbor-view-stairwell",
+              "propertyId": "harbor-view",
+              "name": "Stairwell"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-3b",
+        "query": "heater"
+      },
+      "output": []
+    },
+    {
+      "type": "tool-call",
+      "toolName": "searchOpenWorkOrders",
+      "input": {
+        "unitId": "harbor-view-3b",
+        "query": "tap"
+      },
+      "output": []
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "maintenance",
+        "operations": [
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-3b"
+            },
+            "title": "Heater not working",
+            "description": "The heater is dead again, radiators are stone cold as last week.",
+            "trade": "hvac",
+            "urgency": "urgent"
+          },
+          {
+            "type": "create",
+            "location": {
+              "type": "unit",
+              "unitId": "harbor-view-3b"
+            },
+            "title": "Kitchen tap dripping",
+            "description": "Kitchen tap has started dripping a little.",
+            "trade": "plumbing",
+            "urgency": "routine"
+          }
+        ],
+        "uncertain": false,
+        "draftReplies": [],
+        "reasoning": "The message reports two separate problems: a non‑functioning heater causing cold radiators, and a kitchen tap that has started dripping. Both issues are located within the sender's unit (Harbor View Apartments, unit 3B). No open work orders were found for either issue, so each requires a new work order. The heater issue is urgent due to lack of heat, while the tap drip is minor and can be handled as routine. No draft replies are needed as the problems are properly placed."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "auto-apply",
+        "rules": [],
+        "reason": "Clear new routine or urgent Work Order(s), or obvious same-Tenant matches."
+      }
+    }
+  ]
+}

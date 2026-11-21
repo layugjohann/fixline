@@ -1,0 +1,84 @@
+{
+  "messageId": "msg-rent-question",
+  "steps": [
+    {
+      "type": "tool-call",
+      "toolName": "lookUpSender",
+      "input": {
+        "email": "maya.okafor@example.com"
+      },
+      "output": {
+        "found": true,
+        "tenant": {
+          "id": "tenant-maya",
+          "name": "Maya Okafor",
+          "email": "maya.okafor@example.com",
+          "phone": "+1 555 0101",
+          "unitId": "harbor-view-2a"
+        },
+        "unit": {
+          "id": "harbor-view-2a",
+          "propertyId": "harbor-view",
+          "label": "2A"
+        },
+        "property": {
+          "id": "harbor-view",
+          "name": "Harbor View Apartments",
+          "address": "12 Harbor Lane",
+          "units": [
+            {
+              "id": "harbor-view-1a",
+              "propertyId": "harbor-view",
+              "label": "1A"
+            },
+            {
+              "id": "harbor-view-2a",
+              "propertyId": "harbor-view",
+              "label": "2A"
+            },
+            {
+              "id": "harbor-view-3b",
+              "propertyId": "harbor-view",
+              "label": "3B"
+            }
+          ],
+          "commonAreas": [
+            {
+              "id": "harbor-view-lobby",
+              "propertyId": "harbor-view",
+              "name": "Lobby"
+            },
+            {
+              "id": "harbor-view-laundry-room",
+              "propertyId": "harbor-view",
+              "name": "Laundry room"
+            },
+            {
+              "id": "harbor-view-stairwell",
+              "propertyId": "harbor-view",
+              "name": "Stairwell"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "proposal",
+      "proposal": {
+        "classification": "not-maintenance",
+        "operations": [],
+        "uncertain": false,
+        "draftReplies": [],
+        "reasoning": "Sender (Maya Okafor, Unit 2A at Harbor View Apartments) is asking about rent due date and whether bank transfer is accepted. This is a billing/administrative question, not a maintenance problem, so no Work Order is created and no draft reply is required."
+      }
+    },
+    {
+      "type": "routing",
+      "decision": {
+        "outcome": "auto-apply",
+        "rules": [],
+        "reason": "Proposal makes no changes to the Board."
+      }
+    }
+  ]
+}
