@@ -14,7 +14,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatRatio } from "@/console/scorecard";
+import { formatPercent, formatRatio } from "@/console/scorecard";
 import { landingExample, pickLandingReplay } from "@/console/landing";
 import { loadReplays } from "@/replays/files";
 import { loadScorecard } from "./console/scorecard-data";
@@ -160,7 +160,7 @@ export default async function Home() {
                 <li key={model.model} className="min-w-0 rounded-xl border bg-card p-5">
                   <div className="font-mono text-xs font-semibold break-all">{model.model}</div>
                   <div className="mt-3 text-3xl font-semibold tabular-nums">
-                    {model.scenariosPassed.score === null ? "–" : `${Math.round(model.scenariosPassed.score * 100)}%`}
+                    {model.scenariosPassed.score === null ? "–" : formatPercent(model.scenariosPassed.score)}
                   </div>
                   <div className="mt-1 text-sm text-muted-foreground">
                     Scenarios passed: {formatRatio(model.scenariosPassed)}
