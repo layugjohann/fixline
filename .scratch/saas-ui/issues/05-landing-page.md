@@ -12,7 +12,8 @@
 
 **Blocked by:** 01, 04
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/23
 
 - [ ] `/` is the landing page and its buttons open the Demo and sandbox workspaces
 - [ ] Animated example uses a real replay
@@ -50,3 +51,5 @@ Usage: Implementer 10 input, 1,334 output, 13,854 cache creation, 108,353 cache 
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-05-2026-11-21T17-54-26-994Z.log`).
 
 Usage: Body writer 2 input, 1,352 output, 27,827 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/23
