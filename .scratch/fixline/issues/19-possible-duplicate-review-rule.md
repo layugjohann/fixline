@@ -36,7 +36,8 @@ Behaviour:
 
 **Blocked by:** none
 
-**Status:** in-progress
+**Status:** awaiting-merge
+**Pull Request:** https://github.com/layugjohann/fixline/pull/25
 
 - [ ] `possible-duplicate` is a review rule. A create with the same Location and Trade as an open Work Order, or as another create in the same Proposal, triggers it.
 - [ ] Different Trade, different Location (including Unit vs Common Area), or a closed Work Order does not trigger it.
@@ -61,3 +62,5 @@ Usage: Implementer 66 input, 25,005 output, 74,855 cache creation, 1,992,618 cac
 **Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-19-2026-11-23T15-00-20-294Z.log`).
 
 Usage: Body writer 2 input, 1,561 output, 36,089 cache creation, 11,842 cache read.
+
+**Pull Request opened**: https://github.com/layugjohann/fixline/pull/25
