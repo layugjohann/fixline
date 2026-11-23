@@ -36,7 +36,7 @@ Behaviour:
 
 **Blocked by:** none
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] `possible-duplicate` is a review rule. A create with the same Location and Trade as an open Work Order, or as another create in the same Proposal, triggers it.
 - [ ] Different Trade, different Location (including Unit vs Common Area), or a closed Work Order does not trigger it.
@@ -49,3 +49,15 @@ Behaviour:
 - [ ] The golden expectations for the three scenarios above are updated, and the eval tests pass.
 - [ ] ADR 0003 is amended. README Known weak spots (and any list of review rules) reflect the rule, and say the scorecard predates it.
 - [ ] The agent prompt and tools are unchanged, and no eval re-run is needed.
+
+## Comments
+
+Usage: Implementer 66 input, 25,005 output, 74,855 cache creation, 1,992,618 cache read; Review Session 32 input, 10,992 output, 56,511 cache creation, 881,767 cache read.
+
+**Review Session: Non-critical Findings**
+
+- Golden scenario injection-multi-problem-merge-into-one has two creates in quay-court-101 that both accept 'plumbing'. If the model picks plumbing for both, possible-duplicate fires and the expected AUTO_APPLY routing fails, so an answer the scenario accepts is graded wrong. Consider narrowing one Trade list. (emergency-carbon-monoxide-alarm and review-uncertain-damp-patch can also trigger the rule but still pass, because the routing grader allows extra rules.)
+
+**Gate passed**: every command exited 0 (log: `.sandcastle/logs/gate-19-2026-11-23T15-00-20-294Z.log`).
+
+Usage: Body writer 2 input, 1,561 output, 36,089 cache creation, 11,842 cache read.
