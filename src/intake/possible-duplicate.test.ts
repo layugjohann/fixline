@@ -218,6 +218,34 @@ describe("possible-duplicate review rule", () => {
       expect(routing.reason).toContain("(WO-2)");
     });
 
+    it("doesn't hold back clear changes when only the emergency create is a possible duplicate", async () => {
+      const emergency = create(unit("harbor-view-2a"), "plumbing", "emergency");
+      const clear = create(unit("harbor-view-2a"), "carpentry");
+      const proposal = proposalOf(emergency, clear);
+
+      const routing = decideRouting(proposal, contextFor([mayaPlumbing]));
+      expect(routing).toMatchObject({ outcome: "apply-and-flag", rules: ["emergency", "possible-duplicate"] });
+      expect(routing.reason).toContain("(WO-2)");
+
+      const board = new FakeBoard([mayaPlumbing]);
+      const reviewQueue = new InMemoryReviewQueue();
+      const model = new MockLanguageModelV4({ doGenerate: [toolCallTurn("call-1", "submitProposal", proposal)] });
+      const result = await runIntake(
+        {
+          id: "msg-burst",
+          sender: { email: "maya.okafor@example.com", name: "Maya Okafor" },
+          receivedAt: "2026-11-16T09:00:00Z",
+          body: "The pipe under the sink has burst! Also the wardrobe door sticks.",
+        },
+        { model, board, propertyRoster, reviewQueue },
+      );
+
+      expect(result.createdWorkOrders).toHaveLength(2);
+      expect(await reviewQueue.list()).toMatchObject([
+        { status: "flagged", routing: { outcome: "apply-and-flag", rules: ["emergency", "possible-duplicate"] } },
+      ]);
+    });
+
     it("holds back a non-emergency possible duplicate alongside an emergency", () => {
       const emergency = create(unit("harbor-view-2a"), "electrical", "emergency");
       const duplicate = create(unit("harbor-view-2a"), "plumbing");

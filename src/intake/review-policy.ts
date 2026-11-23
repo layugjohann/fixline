@@ -60,16 +60,20 @@ function route(proposal: Proposal, context: RoutingContext, whole: Proposal): Ro
   const describe = (shown: readonly ReviewRule[]) => describeRules(shown, proposal, context, whole);
 
   if (rules.includes("emergency")) {
-    const reviewRules = rules.filter((rule) => rule !== "emergency");
-    // Nothing besides the emergency creates is left to review: apply it all and flag every rule,
-    // so a Coordinator handles any doubt after the fact.
-    if (reviewRules.length > 0 && hasOtherOperations(proposal)) {
+    // Split only when the rest of the Proposal itself triggers a review rule. A rule that is only
+    // about the emergency creates (one of them is a possible duplicate) is shown on the flag, and
+    // doesn't hold back clear changes alongside it.
+    const rest = withoutEmergencyCreates(proposal);
+    const restRules = hasOtherOperations(proposal) ? triggeredRules(rest, context, whole) : [];
+    if (restRules.length > 0) {
       return {
         outcome: "split",
         rules,
-        reason: `${RULE_REASONS.emergency} The rest of the Proposal waits for review: ${describe(reviewRules)}`,
+        reason: `${RULE_REASONS.emergency} The rest of the Proposal waits for review: ${describeRules(restRules, rest, context, whole)}`,
       };
     }
+    // Nothing besides the emergency creates is left to review: apply it all and flag every rule,
+    // so a Coordinator handles any doubt after the fact.
     return { outcome: "apply-and-flag", rules, reason: describe(rules) };
   }
   if (rules.length > 0) {
@@ -106,10 +110,7 @@ export function splitEmergency(
     operations: proposal.operations.filter(isEmergencyCreate),
     draftReplies: [],
   };
-  const rest: Proposal = {
-    ...proposal,
-    operations: proposal.operations.filter((operation) => !isEmergencyCreate(operation)),
-  };
+  const rest = withoutEmergencyCreates(proposal);
   // The emergency part carries the rules that are about the whole Proposal, so the
   // Coordinator sees them on the flag. A cross-Tenant match is never an emergency create.
   // Each part carries possible-duplicate when one of its own creates is a possible duplicate,
@@ -126,6 +127,11 @@ export function splitEmergency(
     },
     pending: { proposal: rest, routing: route(rest, context, proposal) },
   };
+}
+
+/** The part of a Proposal that waits for review when it is split: everything but the emergency creates. */
+function withoutEmergencyCreates(proposal: Proposal): Proposal {
+  return { ...proposal, operations: proposal.operations.filter((operation) => !isEmergencyCreate(operation)) };
 }
 
 function triggeredRules(proposal: Proposal, context: RoutingContext, whole: Proposal): ReviewRule[] {
