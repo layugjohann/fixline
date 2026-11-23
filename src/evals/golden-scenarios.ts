@@ -400,7 +400,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-2a"), trade: "plumbing", urgency: "routine" }],
-      routing: AUTO_APPLY,
+      routing: review("possible-duplicate"),
     },
   },
   {
@@ -956,7 +956,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: unit("harbor-view-1a"), trade: "plumbing", urgency: "routine" }],
-      routing: AUTO_APPLY,
+      routing: review("possible-duplicate"),
     },
   },
   {
@@ -1276,7 +1276,7 @@ export const goldenScenarios = parseScenarios([
     expected: {
       classification: "maintenance",
       workOrders: [{ location: commonArea("harbor-view-laundry-room"), trade: "appliance", urgency: "routine" }],
-      routing: AUTO_APPLY,
+      routing: review("possible-duplicate"),
     },
   },
   {
