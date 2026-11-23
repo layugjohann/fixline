@@ -10,7 +10,7 @@
 
 **Blocked by:** 02, 03, 04, 05
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/24
 
 - [ ] Console usable below `lg` with a drawer rail and stacked panes
