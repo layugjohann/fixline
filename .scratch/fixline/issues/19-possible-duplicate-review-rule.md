@@ -36,7 +36,7 @@ Behaviour:
 
 **Blocked by:** none
 
-**Status:** awaiting-merge
+**Status:** done
 **Pull Request:** https://github.com/layugjohann/fixline/pull/25
 
 - [ ] `possible-duplicate` is a review rule. A create with the same Location and Trade as an open Work Order, or as another create in the same Proposal, triggers it.
