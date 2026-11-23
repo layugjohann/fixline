@@ -77,7 +77,9 @@ export async function runIntake(message: Message, deps: IntakeDependencies): Pro
   const sender = lookUpSender(deps.propertyRoster, message.sender);
   const senderTenantId = sender.found ? sender.tenant.id : undefined;
   const attachTargets = await attachTargetsOf(proposal, deps.board);
-  const context: RoutingContext = { senderTenantId, attachTargets };
+  // Read before routing so decideRouting stays pure: it never reads the Board itself.
+  const openWorkOrders = (await deps.board.listWorkOrders()).filter((workOrder) => workOrder.status === "open");
+  const context: RoutingContext = { senderTenantId, attachTargets, openWorkOrders };
   const routing = decideRouting(proposal, context);
   const { changes, reviewQueueEntries } = await carryOut(proposal, routing, message, deps, context);
 

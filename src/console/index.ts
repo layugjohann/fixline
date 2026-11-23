@@ -322,6 +322,7 @@ export const RULE_LABELS: Record<ReviewRule, string> = {
   "cross-tenant-match": "Matches another Tenant's Work Order",
   "unknown-sender": "Sender not in the Property Roster",
   "draft-reply": "Includes a Draft Reply",
+  "possible-duplicate": "Same Location and Trade as an open Work Order",
 };
 
 export const RULE_SHORT_LABELS: Record<ReviewRule, string> = {
@@ -330,6 +331,7 @@ export const RULE_SHORT_LABELS: Record<ReviewRule, string> = {
   "cross-tenant-match": "Cross-tenant",
   "unknown-sender": "Unknown Sender",
   "draft-reply": "Draft Reply",
+  "possible-duplicate": "Possible duplicate",
 };
 
 export const URGENCY_LABELS: Record<Urgency, string> = {

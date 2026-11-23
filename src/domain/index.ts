@@ -226,7 +226,14 @@ export type Proposal = z.infer<typeof ProposalSchema>;
  * The fixed rules of the review policy (ADR 0003) that can send a Proposal to
  * the Review Queue or flag it to a Coordinator.
  */
-export const REVIEW_RULES = ["emergency", "uncertain", "cross-tenant-match", "unknown-sender", "draft-reply"] as const;
+export const REVIEW_RULES = [
+  "emergency",
+  "uncertain",
+  "cross-tenant-match",
+  "unknown-sender",
+  "draft-reply",
+  "possible-duplicate",
+] as const;
 export const ReviewRuleSchema = z.enum(REVIEW_RULES);
 export type ReviewRule = z.infer<typeof ReviewRuleSchema>;
 

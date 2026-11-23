@@ -1,4 +1,12 @@
-import type { Proposal, ProposalOperation, ReviewRule, RoutingDecision, WorkOrder } from "@/domain";
+import {
+  sameLocation,
+  type CreateWorkOrderOperation,
+  type Proposal,
+  type ProposalOperation,
+  type ReviewRule,
+  type RoutingDecision,
+  type WorkOrder,
+} from "@/domain";
 
 /** Facts about the Message the review policy reads alongside the Proposal's labels. */
 export interface RoutingContext {
@@ -6,9 +14,12 @@ export interface RoutingContext {
   senderTenantId: string | undefined;
   /** The Work Orders the Proposal attaches to, as they are on the Board now. */
   attachTargets: readonly WorkOrder[];
+  /** The Board's open Work Orders, read by Intake before routing, for the possible-duplicate rule. */
+  openWorkOrders: readonly WorkOrder[];
 }
 
-const RULE_REASONS: Record<ReviewRule, string> = {
+/** Fixed reasons for each rule. The possible-duplicate reason is built from its matches instead. */
+const RULE_REASONS: Record<Exclude<ReviewRule, "possible-duplicate">, string> = {
   emergency: "An emergency Work Order: applied immediately and flagged for a Coordinator.",
   uncertain: "The agent flagged this Proposal as uncertain.",
   "cross-tenant-match": "It matches a Work Order raised by a different Tenant.",
@@ -21,7 +32,9 @@ const RULE_REASONS: Record<ReviewRule, string> = {
  * categorical labels only, never a numeric confidence:
  * - send to the Review Queue if the agent flagged the Proposal uncertain, if it
  *   matches a Work Order raised by a different Tenant, or if the Sender isn't
- *   in the Property Roster, or if it includes a Draft Reply;
+ *   in the Property Roster, or if it includes a Draft Reply, or if it creates a
+ *   Work Order with the same Location and Trade as an open Work Order or as
+ *   another create in the same Proposal (a possible duplicate);
  * - apply any emergency Work Order immediately and flag it for a Coordinator.
  *   If the Proposal also triggers a review rule, it is split: only the
  *   emergency creates are applied and flagged, and every other operation goes
@@ -34,23 +47,37 @@ const RULE_REASONS: Record<ReviewRule, string> = {
  * can't send a cross-Tenant match to the Board unchecked.
  */
 export function decideRouting(proposal: Proposal, context: RoutingContext): RoutingDecision {
-  const rules = triggeredRules(proposal, context);
+  return route(proposal, context, proposal);
+}
+
+/**
+ * Routes `proposal`, which is either a whole Proposal or one part of `whole` after a split.
+ * Possible duplicates are always looked for across the whole Proposal, so a match between two
+ * creates isn't lost when the split separates them.
+ */
+function route(proposal: Proposal, context: RoutingContext, whole: Proposal): RoutingDecision {
+  const rules = triggeredRules(proposal, context, whole);
+  const describe = (shown: readonly ReviewRule[]) => describeRules(shown, proposal, context, whole);
 
   if (rules.includes("emergency")) {
-    const reviewRules = rules.filter((rule) => rule !== "emergency");
-    // Nothing besides the emergency creates is left to review: apply it all and flag every rule,
-    // so a Coordinator handles any doubt after the fact.
-    if (reviewRules.length > 0 && hasOtherOperations(proposal)) {
+    // Split only when the rest of the Proposal itself triggers a review rule. A rule that is only
+    // about the emergency creates (one of them is a possible duplicate) is shown on the flag, and
+    // doesn't hold back clear changes alongside it.
+    const rest = withoutEmergencyCreates(proposal);
+    const restRules = hasOtherOperations(proposal) ? triggeredRules(rest, context, whole) : [];
+    if (restRules.length > 0) {
       return {
         outcome: "split",
         rules,
-        reason: `${RULE_REASONS.emergency} The rest of the Proposal waits for review: ${describeRules(reviewRules)}`,
+        reason: `${RULE_REASONS.emergency} The rest of the Proposal waits for review: ${describeRules(restRules, rest, context, whole)}`,
       };
     }
-    return { outcome: "apply-and-flag", rules, reason: describeRules(rules) };
+    // Nothing besides the emergency creates is left to review: apply it all and flag every rule,
+    // so a Coordinator handles any doubt after the fact.
+    return { outcome: "apply-and-flag", rules, reason: describe(rules) };
   }
   if (rules.length > 0) {
-    return { outcome: "review", rules, reason: describeRules(rules) };
+    return { outcome: "review", rules, reason: describe(rules) };
   }
   return {
     outcome: "auto-apply",
@@ -83,29 +110,38 @@ export function splitEmergency(
     operations: proposal.operations.filter(isEmergencyCreate),
     draftReplies: [],
   };
-  const rest: Proposal = {
-    ...proposal,
-    operations: proposal.operations.filter((operation) => !isEmergencyCreate(operation)),
-  };
+  const rest = withoutEmergencyCreates(proposal);
   // The emergency part carries the rules that are about the whole Proposal, so the
   // Coordinator sees them on the flag. A cross-Tenant match is never an emergency create.
-  const flaggedRules = triggeredRules(emergency, context);
+  // Each part carries possible-duplicate when one of its own creates is a possible duplicate,
+  // including of a create that the split put in the other part.
+  const flaggedRules = triggeredRules(emergency, context, proposal);
   return {
     flagged: {
       proposal: emergency,
-      routing: { outcome: "apply-and-flag", rules: flaggedRules, reason: describeRules(flaggedRules) },
+      routing: {
+        outcome: "apply-and-flag",
+        rules: flaggedRules,
+        reason: describeRules(flaggedRules, emergency, context, proposal),
+      },
     },
-    pending: { proposal: rest, routing: decideRouting(rest, context) },
+    pending: { proposal: rest, routing: route(rest, context, proposal) },
   };
 }
 
-function triggeredRules(proposal: Proposal, context: RoutingContext): ReviewRule[] {
+/** The part of a Proposal that waits for review when it is split: everything but the emergency creates. */
+function withoutEmergencyCreates(proposal: Proposal): Proposal {
+  return { ...proposal, operations: proposal.operations.filter((operation) => !isEmergencyCreate(operation)) };
+}
+
+function triggeredRules(proposal: Proposal, context: RoutingContext, whole: Proposal): ReviewRule[] {
   const rules: ReviewRule[] = [];
   if (proposal.operations.some(isEmergencyCreate)) rules.push("emergency");
   if (proposal.uncertain) rules.push("uncertain");
   if (crossesTenants(proposal, context)) rules.push("cross-tenant-match");
   if (context.senderTenantId === undefined) rules.push("unknown-sender");
   if (proposal.draftReplies.length > 0) rules.push("draft-reply");
+  if (isPossibleDuplicate(possibleDuplicates(proposal, context, whole))) rules.push("possible-duplicate");
   return rules;
 }
 
@@ -128,6 +164,68 @@ function crossesTenants(proposal: Proposal, context: RoutingContext): boolean {
   });
 }
 
-function describeRules(rules: readonly ReviewRule[]): string {
-  return rules.map((rule) => RULE_REASONS[rule]).join(" ");
+/** What the creates in a Proposal (or one part of it) possibly duplicate. */
+interface PossibleDuplicates {
+  /** Ids of open Work Orders with the same Location and Trade as one of the creates. */
+  workOrderIds: string[];
+  /** Whether one of the creates has the same Location and Trade as another create in the whole Proposal. */
+  withinProposal: boolean;
+}
+
+/**
+ * Finds the possible duplicates of the creates in `proposal` (the whole Proposal or one part
+ * of `whole`): open Work Orders on the Board, and other creates anywhere in `whole`, with the
+ * same Location and Trade. Who raised a Work Order and its Urgency don't matter.
+ */
+function possibleDuplicates(proposal: Proposal, context: RoutingContext, whole: Proposal): PossibleDuplicates {
+  const creates = proposal.operations.filter(isCreate);
+  const wholeCreates = whole.operations.filter(isCreate);
+  const sameKey = (a: CreateWorkOrderOperation | WorkOrder, b: CreateWorkOrderOperation | WorkOrder) =>
+    a.trade === b.trade && sameLocation(a.location, b.location);
+
+  const workOrderIds = context.openWorkOrders
+    .filter((workOrder) => workOrder.status === "open" && creates.some((create) => sameKey(create, workOrder)))
+    .map((workOrder) => workOrder.id);
+  // A split keeps the same operation objects, so a create is told apart from the others by identity.
+  const withinProposal = creates.some((create) =>
+    wholeCreates.some((other) => other !== create && sameKey(create, other)),
+  );
+  return { workOrderIds, withinProposal };
+}
+
+function isPossibleDuplicate(duplicates: PossibleDuplicates): boolean {
+  return duplicates.workOrderIds.length > 0 || duplicates.withinProposal;
+}
+
+function isCreate(operation: ProposalOperation): operation is CreateWorkOrderOperation {
+  return operation.type === "create";
+}
+
+/** The possible-duplicate reason, naming the matching Work Order ids. */
+function possibleDuplicateReason(duplicates: PossibleDuplicates): string {
+  const reasons: string[] = [];
+  if (duplicates.workOrderIds.length > 0) {
+    reasons.push(
+      `It creates a Work Order where an open Work Order of the same Trade already exists (${duplicates.workOrderIds.join(", ")}).`,
+    );
+  }
+  if (duplicates.withinProposal) {
+    reasons.push("It creates more than one Work Order with the same Location and Trade within this same Proposal.");
+  }
+  return reasons.join(" ");
+}
+
+function describeRules(
+  rules: readonly ReviewRule[],
+  proposal: Proposal,
+  context: RoutingContext,
+  whole: Proposal,
+): string {
+  return rules
+    .map((rule) =>
+      rule === "possible-duplicate"
+        ? possibleDuplicateReason(possibleDuplicates(proposal, context, whole))
+        : RULE_REASONS[rule],
+    )
+    .join(" ");
 }

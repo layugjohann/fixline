@@ -5,7 +5,7 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
 import { FakeBoard } from "@/board";
-import type { DraftReply, Message, Proposal, WorkOrder } from "@/domain";
+import type { DraftReply, Message, Proposal, Trade, WorkOrder } from "@/domain";
 import { propertyRoster } from "@/fixtures";
 import {
   ReviewQueueEntryNotResolvableError,
@@ -60,7 +60,12 @@ function messageFrom(sender: Message["sender"], body: string, id = "msg-1"): Mes
   return { id, sender, receivedAt: "2026-11-16T09:00:00Z", body };
 }
 
-function createIn(unitId: string, urgency: "emergency" | "urgent" | "routine", uncertain = false): Proposal {
+function createIn(
+  unitId: string,
+  urgency: "emergency" | "urgent" | "routine",
+  uncertain = false,
+  trade: Trade = "plumbing",
+): Proposal {
   return {
     classification: "maintenance",
     operations: [
@@ -69,7 +74,7 @@ function createIn(unitId: string, urgency: "emergency" | "urgent" | "routine", u
         location: { type: "unit", unitId },
         title: "Problem",
         description: "Described problem.",
-        trade: "plumbing",
+        trade,
         urgency,
       },
     ],
@@ -280,7 +285,10 @@ describe("review policy", () => {
     });
 
     it("applies an emergency alongside clear routine changes whole, and flags it", async () => {
-      const proposal = withOperations(createIn("harbor-view-2a", "emergency"), createIn("harbor-view-2a", "routine"));
+      const proposal = withOperations(
+        createIn("harbor-view-2a", "emergency"),
+        createIn("harbor-view-2a", "routine", false, "carpentry"),
+      );
 
       const { result, board, reviewQueue } = await intake(
         messageFrom(MAYA, "Pipe burst under the sink! Also the wardrobe door sticks."),
@@ -331,7 +339,7 @@ describe("review policy", () => {
     it("applies only the emergency from a Sender not in the Property Roster, and sends the rest to review", async () => {
       const { result, board, reviewQueue } = await intake(
         messageFrom(STRANGER, "Flooding in 2A from the sink! Also the window latch is loose."),
-        withOperations(createIn("harbor-view-2a", "emergency"), createIn("harbor-view-2a", "routine")),
+        withOperations(createIn("harbor-view-2a", "emergency"), createIn("harbor-view-2a", "routine", false, "carpentry")),
       );
 
       expect(result.routing).toMatchObject({ outcome: "split", rules: ["emergency", "unknown-sender"] });
@@ -349,7 +357,12 @@ describe("review policy", () => {
     it("applies only the emergency from an uncertain Proposal, and sends the rest to review", async () => {
       const { result, board, reviewQueue } = await intake(
         messageFrom(LUIS, "Sparks from the socket! And maybe a knocking in the pipes?"),
-        { ...withOperations(createIn("harbor-view-3b", "emergency"), createIn("harbor-view-3b", "routine")), uncertain: true },
+        { ...withOperations(
+          createIn("harbor-view-3b", "emergency", false, "electrical"),
+          createIn("harbor-view-3b", "routine"),
+        ),
+        uncertain: true,
+      },
       );
 
       expect(result.routing).toMatchObject({ outcome: "split", rules: ["emergency", "uncertain"] });
@@ -382,7 +395,7 @@ describe("review policy", () => {
     it("leaves the emergency on the Board when a Coordinator rejects the rest", async () => {
       const { result, board, deps } = await intake(
         messageFrom(STRANGER, "Flooding in 2A from the sink! Also the window latch is loose."),
-        withOperations(createIn("harbor-view-2a", "emergency"), createIn("harbor-view-2a", "routine")),
+        withOperations(createIn("harbor-view-2a", "emergency"), createIn("harbor-view-2a", "routine", false, "carpentry")),
       );
 
       await rejectProposal(result.reviewQueueEntries[1]!.id, deps);

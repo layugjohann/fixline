@@ -205,7 +205,9 @@ describe("golden dataset review routing", () => {
     const outcomes = new Set(goldenScenarios.map((s) => s.expected.routing.outcome));
     expect(outcomes).toEqual(new Set(["auto-apply", "review", "apply-and-flag", "split"]));
     const rules = new Set(goldenScenarios.flatMap((s) => s.expected.routing.rules));
-    expect(rules).toEqual(new Set(["emergency", "uncertain", "cross-tenant-match", "unknown-sender", "draft-reply"]));
+    expect(rules).toEqual(
+      new Set(["emergency", "uncertain", "cross-tenant-match", "unknown-sender", "draft-reply", "possible-duplicate"]),
+    );
   });
 
   it("covers the cross-Tenant ceiling leak, an unknown Sender and an uncertain Message", () => {
@@ -366,11 +368,14 @@ describe("eval runner", () => {
     });
 
     const [duplicateResult, differentResult] = scorecard.scenarios;
+    // The missed match goes to review as a possible duplicate instead of reaching the Board.
     expect(duplicateResult!.grades.filter((g) => g.status === "fail")).toEqual([
       { dimension: "match", status: "fail", detail: "expected WO-2, got new Work Order" },
+      { dimension: "routing", status: "fail", detail: "expected auto-apply, got review (possible-duplicate)" },
     ]);
     expect(differentResult!.grades.filter((g) => g.status === "fail")).toEqual([
       { dimension: "match", status: "fail", detail: "expected new Work Order, got WO-2" },
+      { dimension: "routing", status: "fail", detail: "expected review (possible-duplicate), got auto-apply" },
     ]);
     expect(formatScorecard(scorecard)).toContain("match-duplicate-report-same-tenant › match: expected WO-2, got new Work Order");
   });
