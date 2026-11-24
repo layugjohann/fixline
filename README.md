@@ -22,7 +22,7 @@ Fixline reads each message, works out what it's about, and proposes changes to t
 
 ## Scorecard
 
-Free-tier models on the 10-scenario smoke subset of the golden dataset (78 scenarios in all). How it's run, and the known weak spots, are under [Evals](#evals).
+Free-tier models on the 10-scenario smoke subset of the golden dataset (79 scenarios in all). How it's run, and the known weak spots, are under [Evals](#evals).
 
 <!-- scorecard:start -->
 | Dimension | `groq:openai/gpt-oss-120b` | `groq:qwen/qwen3.8-27b` |
@@ -104,7 +104,7 @@ npm run eval -- --model claude:claude-sonnet-5-5
 npm run eval -- --tag draft-reply --judge claude:claude-sonnet-5-5   # judge Draft Replies with another model
 ```
 
-The dataset has 78 scenarios: non-maintenance Messages, every Urgency, duplicates and angry follow-ups, similar-but-different problems that must not be matched, multi-problem Messages, Common Areas (including merges across Units and lookalikes in another Property), unknown Senders, Unit mismatches, cross-Tenant matches, emergencies split from the parts that need review, Draft Replies, and prompt injection on its own and combined with matching, splitting and review.
+The dataset has 79 scenarios: non-maintenance Messages, every Urgency, duplicates and angry follow-ups, similar-but-different problems that must not be matched, multi-problem Messages, Common Areas (including merges across Units and lookalikes in another Property), unknown Senders, Unit mismatches, cross-Tenant matches, emergencies split from the parts that need review, Draft Replies, and prompt injection on its own and combined with matching, splitting and review.
 
 Each run writes `scorecard.json` (which records the model), `scorecard.md` (the same scorecard as a Markdown table) and one trace per scenario (`traces/<scenario>.json`, in the same format Intake returns) under `eval-runs/<timestamp>/`. Evals pin the one model they're given and never fall back. A scenario stopped by the provider's rate limit or quota is marked **not run**: it is not graded and never counted as an agent failure. Once a quota is used up, the remaining scenarios are marked not run without calling the model again.
 
@@ -114,7 +114,7 @@ Ten scenarios are tagged `smoke`. Between them they reach every routing outcome 
 
 #### Model scorecard
 
-Fixline costs nothing to run, so the comparison uses free-tier models only, on the 10-scenario smoke subset (a full 78-scenario run doesn't fit in a free tier's daily tokens). One fixed judge grades every model's Draft Replies, so reply quality is comparable across rows:
+Fixline costs nothing to run, so the comparison uses free-tier models only, on the 10-scenario smoke subset (a full 79-scenario run doesn't fit in a free tier's daily tokens). One fixed judge grades every model's Draft Replies, so reply quality is comparable across rows:
 
 ```sh
 npm run eval -- --tag smoke --model groq:openai/gpt-oss-120b --judge groq:openai/gpt-oss-20b --out eval-runs/gpt-oss-120b
