@@ -32,6 +32,7 @@ const leakingTap: NewWorkOrder = {
   trade: "plumbing",
   urgency: "routine",
   messageIds: ["msg-contract-1"],
+  raisedByTenantId: "tenant-maya",
 };
 
 const lobbyLight: NewWorkOrder = {
@@ -77,6 +78,18 @@ export function describeBoardContract(
 
         expect(created).toEqual({ ...leakingTap, id: expect.any(String), status: "open" });
         expect(created.id).not.toBe("");
+      });
+
+      it("keeps the Tenant who raised it", async () => {
+        const created = await board.createWorkOrder(leakingTap);
+
+        expect((await board.getWorkOrder(created.id))?.raisedByTenantId).toBe("tenant-maya");
+      });
+
+      it("keeps a Work Order raised by an unknown Sender without a Tenant", async () => {
+        const created = await board.createWorkOrder(lobbyLight);
+
+        expect(await board.getWorkOrder(created.id)).not.toHaveProperty("raisedByTenantId");
       });
 
       it("keeps a Common Area as the location", async () => {

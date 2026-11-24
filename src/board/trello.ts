@@ -9,7 +9,8 @@
  *                 "Trade: plumbing" (blue), and "Unit: harbor-view-2a" (purple) or
  *                 "Common Area: harbor-view-lobby" (sky)
  *   description   the Work Order's description, then each update as "Update from Message …",
- *                 then a "Messages: msg-1, msg-2" footer linking the Message(s) it came from
+ *                 then a footer: "Raised by: tenant-maya" (the Tenant who raised it, left out for an
+ *                 unknown Sender) and "Messages: msg-1, msg-2" linking the Message(s) it came from
  *   list          new Work Orders go on the "Work Orders" list (created if missing)
  *   status        closed when the card is archived or sits on the "Done" list, otherwise open
  *
@@ -146,21 +147,33 @@ function onlyLabel(labelNames: readonly string[], prefix: string): string | unde
 
 // --- Description -------------------------------------------------------------
 
-const MESSAGES_FOOTER = /(?:^|\n\n)---\nMessages: ([^\n]*)\s*$/;
+const FOOTER = /(?:^|\n\n)---\n(?:Raised by: ([^\n]*)\n)?Messages: ([^\n]*)\s*$/;
 
-function cardDescription(description: string, messageIds: readonly string[]): string {
-  const footer = `---\nMessages: ${messageIds.join(", ")}`;
+interface CardDescription {
+  description: string;
+  messageIds: readonly string[];
+  raisedByTenantId?: string;
+}
+
+function cardDescription({ description, messageIds, raisedByTenantId }: CardDescription): string {
+  const raisedBy = raisedByTenantId ? `Raised by: ${raisedByTenantId}\n` : "";
+  const footer = `---\n${raisedBy}Messages: ${messageIds.join(", ")}`;
   return description ? `${description}\n\n${footer}` : footer;
 }
 
-function parseCardDescription(desc: string): { description: string; messageIds: string[] } {
-  const footer = MESSAGES_FOOTER.exec(desc);
+function parseCardDescription(desc: string): { description: string; messageIds: string[]; raisedByTenantId?: string } {
+  const footer = FOOTER.exec(desc);
   if (!footer) return { description: desc.trim(), messageIds: [] };
-  const messageIds = (footer[1] ?? "")
+  const raisedByTenantId = footer[1]?.trim();
+  const messageIds = (footer[2] ?? "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
-  return { description: desc.slice(0, footer.index).trim(), messageIds };
+  return {
+    description: desc.slice(0, footer.index).trim(),
+    messageIds,
+    ...(raisedByTenantId ? { raisedByTenantId } : {}),
+  };
 }
 
 // --- The adapter ---------------------------------------------------------------
@@ -217,7 +230,7 @@ export class TrelloBoard implements Board {
         body: {
           idList,
           name: workOrder.title,
-          desc: cardDescription(workOrder.description, workOrder.messageIds),
+          desc: cardDescription(workOrder),
           idLabels: idLabels.join(","),
           pos: "top",
         },
@@ -234,7 +247,13 @@ export class TrelloBoard implements Board {
       ? workOrder.messageIds
       : [...workOrder.messageIds, update.messageId];
     await this.client.request("PUT", `/cards/${id}`, {
-      body: { desc: cardDescription(appendInformation(workOrder.description, update), messageIds) },
+      body: {
+        desc: cardDescription({
+          ...workOrder,
+          description: appendInformation(workOrder.description, update),
+          messageIds,
+        }),
+      },
     });
     return this.read(id);
   }
@@ -266,7 +285,7 @@ export class TrelloBoard implements Board {
     const trade = TradeSchema.safeParse(onlyLabel(labelNames, TRADE_PREFIX));
     const location = parseLocation(labelNames);
     if (!urgency.success || !trade.success || !location) return undefined;
-    const { description, messageIds } = parseCardDescription(card.desc);
+    const { description, messageIds, raisedByTenantId } = parseCardDescription(card.desc);
     return {
       id: card.id,
       location,
@@ -276,6 +295,7 @@ export class TrelloBoard implements Board {
       urgency: urgency.data,
       status: card.closed || doneListIds.has(card.idList) ? "closed" : "open",
       messageIds,
+      ...(raisedByTenantId ? { raisedByTenantId } : {}),
     };
   }
 

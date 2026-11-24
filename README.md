@@ -179,6 +179,7 @@ Fixline runs against a real Trello Board from the command line. Set it up with `
 npm run intake -- --from maya.okafor@example.com --body "My kitchen tap is dripping"
 npm run intake -- --file message.json       # a Message as JSON
 npm run intake -- --board fake --body "..."  # an empty in-memory Board instead of Trello
+npm run seed:trello                          # put the sandbox's open Work Orders on the Board (safe to re-run)
 ```
 
 Each Work Order is a card: the title is the card name; Urgency, Trade and the Unit or Common Area are coloured labels (`Urgency: emergency` in red, `Trade: plumbing`, `Unit: harbor-view-2a`); the description holds the details, each update, and the Messages it came from. Archived cards and cards on a "Done" list count as closed.
