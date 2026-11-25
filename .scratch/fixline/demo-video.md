@@ -26,11 +26,13 @@ Setup: browser on the left with fixline-phi.vercel.app and the Trello Board in t
 
 ```sh
 # A repeat report from the same Tenant: attaches to the open heating card (applied automatically)
-npm run intake -- --from priya.nair@example.com --body "STILL no heating in the living room, it's been a week and it's freezing."
+npm run intake -- --model groq:openai/gpt-oss-120b --from priya.nair@example.com --body "STILL no heating in the living room, it's been a week and it's freezing."
 
 # An emergency: a new card with a red "Urgency: emergency" label appears at once, flagged for a Coordinator
-npm run intake -- --from maya.okafor@example.com --body "Water is pouring out from under my bathroom sink and the floor is flooding!"
+npm run intake -- --model groq:qwen/qwen3.8-27b --from maya.okafor@example.com --body "Water is pouring out from under my bathroom sink and the floor is flooding!"
 ```
+
+Groq's free tier allows each model 150,000 tokens a day (a run uses about 10–15k), so the two commands use different models. If one says the quota is used up, wait a few hours.
 
 On Trello: open Priya's heating card to show the update appended to its description; then show the new emergency card and its labels.
 
